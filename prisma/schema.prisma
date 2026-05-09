@@ -1,0 +1,184 @@
+// Prisma schema — Continuum Audit Platform
+// SQLite for local dev, PostgreSQL for production (change provider + DATABASE_URL)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Auth ───────────────────────────────────────────────────
+
+enum UserRole {
+  admin
+  head_of_audit
+  owner
+  reviewer
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(reviewer)
+  avatar    String?  // initials, e.g. "AV"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ownedKpis    Kpi[]      @relation("KpiOwner")
+  reviewedKpis Kpi[]      @relation("KpiReviewer")
+  comments     Comment[]
+  activities   Activity[]
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Audit Domain ────────────────────────────────────────────
+
+model Area {
+  id    String @id
+  name  String
+  short String
+  color String
+
+  kpis Kpi[]
+}
+
+enum KpiStatus {
+  ok
+  review
+  finding
+  running
+  pending
+}
+
+model Kpi {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  areaId     String
+  title      String
+  desc       String
+  risk       Int       // 1-5
+  status     KpiStatus @default(pending)
+  confidence Float     @default(0)
+  value      String    @default("—")
+  delta      String    @default("—")
+  lastRun    String    @default("noch nicht gelaufen")
+  agent      String
+  trend      String    @default("[]") // JSON array stored as string
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  area      Area      @relation(fields: [areaId], references: [id])
+  ownerId   String
+  owner     User      @relation("KpiOwner", fields: [ownerId], references: [id])
+  reviewerId String
+  reviewer  User      @relation("KpiReviewer", fields: [reviewerId], references: [id])
+
+  findings   Finding[]
+  comments   Comment[]
+  auditRuns  AuditRun[]
+  activities Activity[]
+}
+
+enum FindingSeverity {
+  hoch
+  mittel
+  niedrig
+}
+
+enum FindingStatus {
+  offen
+  in_bearbeitung
+  geschlossen
+}
+
+model Finding {
+  id          String          @id @default(cuid())
+  kpiId       String
+  title       String
+  desc        String
+  severity    FindingSeverity
+  status      FindingStatus   @default(offen)
+  ownerId     String
+  dueDate     DateTime
+  openedAt    DateTime        @default(now())
+  closedAt    DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  kpi  Kpi  @relation(fields: [kpiId], references: [id])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  kpiId     String
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  kpi    Kpi  @relation(fields: [kpiId], references: [id])
+  author User @relation(fields: [authorId], references: [id])
+}
+
+enum AuditRunStatus {
+  running
+  ok
+  finding
+  review
+  error
+}
+
+model AuditRun {
+  id          String         @id @default(cuid())
+  kpiId       String
+  agent       String
+  status      AuditRunStatus
+  confidence  Float          @default(0)
+  summary     String?
+  rawOutput   String?        // full agent response
+  startedAt   DateTime       @default(now())
+  finishedAt  DateTime?
+  durationMs  Int?
+
+  kpi Kpi @relation(fields: [kpiId], references: [id])
+}
+
+enum ActivityType {
+  finding
+  approved
+  rerun
+  comment
+  agent
+  status_change
+  user_joined
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  kpiId     String?
+  userId    String?
+  message   String
+  metadata  String?      // JSON for extra data
+  createdAt DateTime     @default(now())
+
+  kpi  Kpi?  @relation(fields: [kpiId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+}

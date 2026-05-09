@@ -9,15 +9,36 @@ const NAV_ITEMS = [
   { id: "agents"    as const, label: "KI-Agenten" },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Administrator",
+  head_of_audit: "Head of Audit",
+  owner: "Process Owner",
+  reviewer: "Reviewer",
+};
+
+interface MeUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar: string | null;
+}
+
 export function TopBar({
   quarter,
   view,
   setView,
+  me,
 }: {
   quarter: string;
   view: ViewId;
   setView: (v: ViewId) => void;
+  me: MeUser | null;
 }) {
+  const initials = me?.avatar ?? me?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() ?? "??";
+  const displayName = me?.name ? me.name.split(" ").map((w, i) => i === 0 ? w[0] + "." : w).join(" ") : "…";
+  const roleLabel = me?.role ? (ROLE_LABELS[me.role] ?? me.role) : "…";
+
   return (
     <header className="topbar">
       {/* Brand */}
@@ -57,10 +78,10 @@ export function TopBar({
           <span className="qp-value">{quarter}</span>
         </div>
         <div className="user-chip">
-          <div className="avatar">AV</div>
+          <div className="avatar">{initials}</div>
           <div>
-            <div className="user-name">A. Voss</div>
-            <div className="user-role">Head of Audit</div>
+            <div className="user-name">{displayName}</div>
+            <div className="user-role">{roleLabel}</div>
           </div>
         </div>
       </div>

@@ -28,6 +28,7 @@ export interface Kpi {
 export interface Finding {
   id: string;
   kpi: string;
+  kpiCode?: string;
   title: string;
   severity: "hoch" | "mittel" | "niedrig";
   status: "offen" | "in_bearbeitung" | "geschlossen";
@@ -37,9 +38,18 @@ export interface Finding {
   desc: string;
 }
 
+export type ActivityType =
+  | "finding"
+  | "approved"
+  | "rerun"
+  | "comment"
+  | "agent"
+  | "status_change"
+  | "user_joined";
+
 export interface Activity {
   id: string;
-  type: "finding" | "approved" | "rerun" | "comment" | "agent";
+  type: ActivityType;
   kpiCode: string;
   kpiId: string;
   user: string;

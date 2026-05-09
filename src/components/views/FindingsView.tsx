@@ -1,8 +1,6 @@
 "use client";
-import type { Kpi } from "@/types";
-import { FINDINGS, AREAS } from "@/data/audit-data";
+import type { Kpi, Finding } from "@/types";
 import { AreaTag } from "@/components/ui/AreaTag";
-import { StatusDot } from "@/components/ui/StatusDot";
 
 const SEVERITY_COLOR = {
   hoch:    "var(--alert)",
@@ -16,9 +14,17 @@ const SEVERITY_BG = {
   niedrig: "var(--ok-bg)",
 };
 
-export function FindingsView({ kpis, onOpenKpi }: { kpis: Kpi[]; onOpenKpi: (id: string) => void }) {
-  const openFindings = FINDINGS.filter((f) => f.status !== "geschlossen");
-  const closedFindings = FINDINGS.filter((f) => f.status === "geschlossen");
+export function FindingsView({
+  kpis,
+  findings,
+  onOpenKpi,
+}: {
+  kpis: Kpi[];
+  findings: Finding[];
+  onOpenKpi: (id: string) => void;
+}) {
+  const openFindings = findings.filter((f) => f.status !== "geschlossen");
+  const closedFindings = findings.filter((f) => f.status === "geschlossen");
 
   return (
     <div>
@@ -32,8 +38,11 @@ export function FindingsView({ kpis, onOpenKpi }: { kpis: Kpi[]; onOpenKpi: (id:
         {(["hoch", "mittel", "niedrig"] as const).map((sev) => {
           const count = openFindings.filter((f) => f.severity === sev).length;
           return (
-            <div key={sev} className="findings-summary-card"
-              style={{ borderColor: SEVERITY_COLOR[sev], background: SEVERITY_BG[sev] }}>
+            <div
+              key={sev}
+              className="findings-summary-card"
+              style={{ borderColor: SEVERITY_COLOR[sev], background: SEVERITY_BG[sev] }}
+            >
               <div className="fsc-num" style={{ color: SEVERITY_COLOR[sev] }}>{count}</div>
               <div className="fsc-label">{sev.charAt(0).toUpperCase() + sev.slice(1)}</div>
             </div>
@@ -50,7 +59,10 @@ export function FindingsView({ kpis, onOpenKpi }: { kpis: Kpi[]; onOpenKpi: (id:
               <div className="fr-sev-bar" style={{ background: SEVERITY_COLOR[f.severity] }} />
               <div className="fr-body">
                 <div className="fr-head">
-                  <span className="severity-badge" style={{ background: SEVERITY_BG[f.severity], color: SEVERITY_COLOR[f.severity] }}>
+                  <span
+                    className="severity-badge"
+                    style={{ background: SEVERITY_BG[f.severity], color: SEVERITY_COLOR[f.severity] }}
+                  >
                     {f.severity.charAt(0).toUpperCase() + f.severity.slice(1)}
                   </span>
                   {kpi && <AreaTag areaId={kpi.area} />}
@@ -73,6 +85,12 @@ export function FindingsView({ kpis, onOpenKpi }: { kpis: Kpi[]; onOpenKpi: (id:
             </div>
           );
         })}
+
+        {openFindings.length === 0 && (
+          <div style={{ padding: "2rem", textAlign: "center", color: "var(--ink-3)", fontSize: "0.875rem" }}>
+            Keine offenen Findings
+          </div>
+        )}
       </div>
     </div>
   );
