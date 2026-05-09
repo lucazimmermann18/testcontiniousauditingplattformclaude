@@ -133,7 +133,7 @@ export function AppShell() {
           {view === "heatmap"  && <HeatmapView  kpis={kpis} onOpenKpi={openKpi} />}
           {view === "timeline" && <TimelineView  kpis={kpis} />}
           {view === "findings" && <FindingsView  kpis={kpis} findings={findings} onOpenKpi={openKpi} />}
-          {view === "agents"   && <AgentsView    kpis={kpis} />}
+          {view === "agents"   && <AgentsView    kpis={kpis} onKpisUpdated={fetchKpis} />}
         </main>
 
         <ActivitySidebar activities={activities} onOpenKpi={openKpi} />

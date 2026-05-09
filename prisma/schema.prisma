@@ -91,10 +91,12 @@ model Kpi {
   reviewerId String
   reviewer  User      @relation("KpiReviewer", fields: [reviewerId], references: [id])
 
-  findings   Finding[]
-  comments   Comment[]
-  auditRuns  AuditRun[]
-  activities Activity[]
+  findings      Finding[]
+  comments      Comment[]
+  auditRuns     AuditRun[]
+  activities    Activity[]
+  schedule      AgentSchedule?
+  mockData      KpiMockData?
 }
 
 enum FindingSeverity {
@@ -181,4 +183,46 @@ model Activity {
 
   kpi  Kpi?  @relation(fields: [kpiId], references: [id])
   user User? @relation(fields: [userId], references: [id])
+}
+
+// ─── AI Agent Engine ─────────────────────────────────────────
+
+enum AiProvider {
+  anthropic
+  openai
+  deepseek
+  openrouter
+}
+
+model ApiKey {
+  id           String      @id @default(cuid())
+  provider     AiProvider  @unique
+  encryptedKey String
+  model        String
+  isActive     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model AgentSchedule {
+  id           String    @id @default(cuid())
+  kpiId        String    @unique
+  intervalHours Int      @default(24)
+  enabled      Boolean   @default(false)
+  lastRunAt    DateTime?
+  nextRunAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  kpi Kpi @relation(fields: [kpiId], references: [id])
+}
+
+model KpiMockData {
+  id          String   @id @default(cuid())
+  kpiId       String   @unique
+  description String
+  data        String   // JSON string — realistic sample data for the agent
+  updatedAt   DateTime @updatedAt
+
+  kpi Kpi @relation(fields: [kpiId], references: [id])
 }
