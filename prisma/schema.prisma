@@ -31,11 +31,14 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  ownedKpis    Kpi[]      @relation("KpiOwner")
-  reviewedKpis Kpi[]      @relation("KpiReviewer")
-  comments     Comment[]
-  activities   Activity[]
-  sessions     Session[]
+  ownedKpis      Kpi[]          @relation("KpiOwner")
+  reviewedKpis   Kpi[]          @relation("KpiReviewer")
+  comments       Comment[]
+  activities     Activity[]
+  sessions       Session[]
+  assignedTasks  Task[]         @relation("TaskAssignee")
+  createdTasks   Task[]         @relation("TaskCreator")
+  notifications  Notification[]
 }
 
 model Session {
@@ -97,6 +100,8 @@ model Kpi {
   activities    Activity[]
   schedule      AgentSchedule?
   mockData      KpiMockData?
+  tasks         Task[]
+  approval      KpiApproval?
 }
 
 enum FindingSeverity {
@@ -225,4 +230,86 @@ model KpiMockData {
   updatedAt   DateTime @updatedAt
 
   kpi Kpi @relation(fields: [kpiId], references: [id])
+}
+
+// ─── Collaboration ───────────────────────────────────────────
+
+enum TaskStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  critical
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  kpiId       String?
+  findingId   String?
+  assigneeId  String
+  createdById String
+  status      TaskStatus   @default(open)
+  priority    TaskPriority @default(medium)
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  kpi       Kpi?    @relation(fields: [kpiId], references: [id])
+  assignee  User    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy User    @relation("TaskCreator", fields: [createdById], references: [id])
+}
+
+enum ApprovalStatus {
+  pending
+  reviewer_approved
+  head_approved
+  rejected
+}
+
+model KpiApproval {
+  id               String         @id @default(cuid())
+  kpiId            String         @unique
+  status           ApprovalStatus @default(pending)
+  reviewerId       String?
+  reviewerNote     String?
+  reviewedAt       DateTime?
+  headAuditorId    String?
+  headAuditorNote  String?
+  headApprovedAt   DateTime?
+  period           String         // e.g. "Q2 2026"
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  kpi Kpi @relation(fields: [kpiId], references: [id])
+}
+
+enum NotificationType {
+  comment_mention
+  task_assigned
+  task_due
+  finding_created
+  approval_requested
+  approval_done
+  agent_completed
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  message   String
+  read      Boolean          @default(false)
+  metadata  String?          // JSON: { kpiId, findingId, taskId, ... }
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }

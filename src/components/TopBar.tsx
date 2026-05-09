@@ -1,5 +1,6 @@
 "use client";
 import type { ViewId } from "./AppShell";
+import { NotificationBell } from "./NotificationBell";
 
 const NAV_ITEMS = [
   { id: "dashboard" as const, label: "Übersicht" },
@@ -29,11 +30,13 @@ export function TopBar({
   view,
   setView,
   me,
+  onOpenKpi,
 }: {
   quarter: string;
   view: ViewId;
   setView: (v: ViewId) => void;
   me: MeUser | null;
+  onOpenKpi: (id: string) => void;
 }) {
   const initials = me?.avatar ?? me?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() ?? "??";
   const displayName = me?.name ? me.name.split(" ").map((w, i) => i === 0 ? w[0] + "." : w).join(" ") : "…";
@@ -71,6 +74,7 @@ export function TopBar({
 
       {/* Right side */}
       <div className="topbar-right">
+        <NotificationBell onOpenKpi={onOpenKpi} />
         {isAdmin && (
           <a href="/settings" className="topbar-settings-btn" title="Einstellungen">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none">

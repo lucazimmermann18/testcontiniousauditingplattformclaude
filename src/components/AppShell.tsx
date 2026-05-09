@@ -116,7 +116,7 @@ export function AppShell() {
 
   return (
     <div id="app">
-      <TopBar quarter={CURRENT_QUARTER} view={view} setView={setView} me={me} />
+      <TopBar quarter={CURRENT_QUARTER} view={view} setView={setView} me={me} onOpenKpi={openKpi} />
 
       <div className="main">
         <main className="main-content">
@@ -140,7 +140,7 @@ export function AppShell() {
       </div>
 
       {openKpiObj && (
-        <KpiDetail kpi={openKpiObj} onClose={closeKpi} onAction={handleAction} />
+        <KpiDetail kpi={openKpiObj} onClose={closeKpi} onAction={handleAction} me={me} />
       )}
 
       {toast && (
