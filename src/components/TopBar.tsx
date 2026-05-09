@@ -88,12 +88,23 @@ export function TopBar({
           <span className="qp-label">Laufendes Quartal</span>
           <span className="qp-value">{quarter}</span>
         </div>
-        <div className="user-chip">
-          <div className="avatar">{initials}</div>
-          <div>
-            <div className="user-name">{displayName}</div>
-            <div className="user-role">{roleLabel}</div>
-          </div>
+        <div className="user-chip-wrap">
+          <a href="/profile" className="user-chip" title="Mein Profil">
+            <div className="avatar">{initials}</div>
+            <div>
+              <div className="user-name">{displayName}</div>
+              <div className="user-role">{roleLabel}</div>
+            </div>
+          </a>
+          {isAdmin && (
+            <a href="/team" className="topbar-settings-btn" title="Team">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </a>
+          )}
         </div>
       </div>
     </header>
