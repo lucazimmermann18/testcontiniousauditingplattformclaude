@@ -16,13 +16,33 @@ async function buildContext(kpiId: string): Promise<AgentContext> {
     include: {
       area: true,
       mockData: true,
+      dataSource: true,
     },
   });
   if (!kpi) throw new Error(`KPI ${kpiId} nicht gefunden`);
 
-  const mockEntry = kpi.mockData
-    ? { description: kpi.mockData.description, data: JSON.parse(kpi.mockData.data) }
-    : MOCK_DATA[kpi.code] ?? { description: "Keine Mock-Daten verfügbar", data: {} };
+  // Prefer live data source → DB mock override → static mock constants
+  let dataDescription: string;
+  let data: unknown;
+  let dataSourceLabel = "Mock-Daten";
+
+  if (kpi.dataSource?.active && kpi.dataSource.lastData) {
+    try {
+      data = JSON.parse(kpi.dataSource.lastData);
+      dataDescription = `Echtdaten aus "${kpi.dataSource.name}" (${kpi.dataSource.type}), abgerufen am ${kpi.dataSource.lastFetchedAt?.toLocaleString("de-DE") ?? "unbekannt"}`;
+      dataSourceLabel = kpi.dataSource.name;
+    } catch {
+      // fall through to mock
+    }
+  }
+
+  if (data === undefined) {
+    const mockEntry = kpi.mockData
+      ? { description: kpi.mockData.description, data: JSON.parse(kpi.mockData.data) }
+      : MOCK_DATA[kpi.code] ?? { description: "Keine Daten verfügbar", data: {} };
+    dataDescription = mockEntry.description;
+    data = mockEntry.data;
+  }
 
   return {
     kpiCode: kpi.code,
@@ -33,8 +53,9 @@ async function buildContext(kpiId: string): Promise<AgentContext> {
     currentValue: kpi.value,
     delta: kpi.delta,
     trend: JSON.parse(kpi.trend || "[]"),
-    mockDataDescription: mockEntry.description,
-    mockData: mockEntry.data,
+    mockDataDescription: dataDescription!,
+    mockData: data,
+    dataSourceLabel,
   };
 }
 

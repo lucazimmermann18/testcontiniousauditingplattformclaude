@@ -100,6 +100,7 @@ model Kpi {
   activities    Activity[]
   schedule      AgentSchedule?
   mockData      KpiMockData?
+  dataSource    DataSource?
   tasks         Task[]
   approval      KpiApproval?
 }
@@ -228,6 +229,36 @@ model KpiMockData {
   description String
   data        String   // JSON string — realistic sample data for the agent
   updatedAt   DateTime @updatedAt
+
+  kpi Kpi @relation(fields: [kpiId], references: [id])
+}
+
+// ─── Data Sources ────────────────────────────────────────────
+
+enum DataSourceType {
+  REST
+  CSV
+  MANUAL
+}
+
+model DataSource {
+  id             String         @id @default(cuid())
+  kpiId          String         @unique
+  name           String
+  type           DataSourceType @default(MANUAL)
+  // REST
+  url            String?
+  method         String         @default("GET")
+  headersEnc     String?        // encrypted JSON map of header key→value
+  bodyTemplate   String?        // JSON string body for POST requests
+  jsonPath       String?        // dot-notation path to extract array from response
+  // Shared state
+  active         Boolean        @default(true)
+  lastFetchedAt  DateTime?
+  lastData       String?        // cached JSON string of last successful fetch
+  lastError      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   kpi Kpi @relation(fields: [kpiId], references: [id])
 }

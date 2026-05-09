@@ -1,18 +1,28 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
 import { ApiKeySettings } from "./ApiKeySettings";
+import { DataSourceSettings } from "./DataSourceSettings";
 
 export const metadata = { title: "Einstellungen · Continuum Audit" };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = (session.user as any).role;
   if (role !== "admin" && role !== "head_of_audit") redirect("/");
 
+  const { tab } = await searchParams;
+  const activeTab = tab === "datasources" ? "datasources" : "apikeys";
+
+  const kpis = await db.kpi.findMany({
+    select: { id: true, code: true, title: true },
+    orderBy: { code: "asc" },
+  });
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--surface-1)", padding: "2rem" }}>
-      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <div style={{ marginBottom: "2rem" }}>
           <a href="/" style={{ color: "var(--ink-3)", fontSize: "0.875rem", textDecoration: "none" }}>
             ← Zurück zum Dashboard
@@ -24,7 +34,19 @@ export default async function SettingsPage() {
             Plattform-Konfiguration und KI-Agenten-Einstellungen
           </p>
         </div>
-        <ApiKeySettings />
+
+        {/* Tab bar */}
+        <div className="settings-tabs">
+          <a href="/settings?tab=apikeys" className={`settings-tab${activeTab === "apikeys" ? " settings-tab-active" : ""}`}>
+            KI-Provider & API-Keys
+          </a>
+          <a href="/settings?tab=datasources" className={`settings-tab${activeTab === "datasources" ? " settings-tab-active" : ""}`}>
+            Datenquellen
+          </a>
+        </div>
+
+        {activeTab === "apikeys" && <ApiKeySettings />}
+        {activeTab === "datasources" && <DataSourceSettings kpis={kpis} />}
       </div>
     </div>
   );

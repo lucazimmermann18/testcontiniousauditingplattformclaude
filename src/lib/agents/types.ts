@@ -24,4 +24,5 @@ export interface AgentContext {
   trend: number[];
   mockDataDescription: string;
   mockData: unknown;
+  dataSourceLabel?: string;
 }
