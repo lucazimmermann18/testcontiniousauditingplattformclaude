@@ -297,6 +297,13 @@ export function TopBar({
               </svg>
             </a>
           )}
+          {isAdmin && (
+            <a href="/org" className="topbar-settings-btn" title="Organisation & SSO">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M3 21h18M3 7v14M21 7v14M9 21V12h6v9M3 7l9-4 9 4" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+            </a>
+          )}
         </div>
       </div>
     </header>

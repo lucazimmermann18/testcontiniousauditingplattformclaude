@@ -42,6 +42,7 @@ model User {
   createdTasks     Task[]         @relation("TaskCreator")
   notifications    Notification[]
   assignedFindings Finding[]      @relation("FindingAssignee")
+  orgMemberships   OrgMember[]
 }
 
 model Session {
@@ -387,4 +388,48 @@ model WebhookConfig {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─── Organisation & SSO ───────────────────────────────────────
+
+model Organization {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  plan         String   @default("trial")
+  allowedDomains String? // JSON array of allowed email domains for auto-join
+  ssoGoogle    Boolean  @default(false)
+  ssoMicrosoft Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members OrgMember[]
+  invites OrgInvite[]
+}
+
+model OrgMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           UserRole @default(reviewer)
+  joinedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model OrgInvite {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           UserRole @default(reviewer)
+  token          String   @unique @default(cuid())
+  expiresAt      DateTime
+  accepted       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }

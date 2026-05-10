@@ -11,6 +11,11 @@ export default async function LoginPage() {
   const session = await auth();
   if (session?.user) redirect("/");
 
+  const sso = {
+    google: !!process.env.GOOGLE_CLIENT_ID,
+    microsoft: !!process.env.MICROSOFT_CLIENT_ID,
+  };
+
   return (
     <div className="login-page">
       {/* Background */}
@@ -38,7 +43,7 @@ export default async function LoginPage() {
         </div>
 
         <Suspense>
-          <LoginForm />
+          <LoginForm sso={sso} />
         </Suspense>
 
         {/* Footer */}
