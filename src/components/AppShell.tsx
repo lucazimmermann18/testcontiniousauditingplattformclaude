@@ -11,6 +11,7 @@ import { AuditHistoryView } from "./views/AuditHistoryView";
 import { TasksView } from "./views/TasksView";
 import { SearchModal } from "./SearchModal";
 import { OnboardingGate } from "./OnboardingModal";
+import { DashboardSkeleton } from "./ui/Skeleton";
 import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
@@ -186,8 +187,24 @@ export function AppShell() {
   if (loading) {
     return (
       <div id="app">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--ink-3)", fontSize: "0.875rem" }}>
-          Plattform wird geladen…
+        <div className="topbar" style={{ opacity: 0.5, pointerEvents: "none" }}>
+          <div className="brand">
+            <div className="brand-mark">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+                <rect x="2" y="2" width="20" height="20" rx="3" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M7 12h3l2-5 3 10 2-5h2" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="brand-text">
+              <div className="brand-name">CONTINUUM<span>·</span>AUDIT</div>
+              <div className="brand-sub">Continuous Auditing Plattform</div>
+            </div>
+          </div>
+        </div>
+        <div className="main">
+          <main className="main-content">
+            <DashboardSkeleton />
+          </main>
         </div>
       </div>
     );
