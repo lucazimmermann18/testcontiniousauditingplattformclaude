@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { id: "tasks"     as const, label: "Aufgaben" },
   { id: "agents"    as const, label: "KI-Agenten" },
   { id: "history"   as const, label: "Audit-Verlauf" },
+  { id: "assistant" as const, label: "🤖 KI-Assistent", highlight: true },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -72,7 +73,7 @@ export function TopBar({
         {NAV_ITEMS.map((n) => (
           <button
             key={n.id}
-            className={`topnav-btn${view === n.id ? " active" : ""}`}
+            className={`topnav-btn${view === n.id ? " active" : ""}${"highlight" in n && n.highlight ? " topnav-btn-highlight" : ""}`}
             onClick={() => setView(n.id)}
           >
             {n.label}

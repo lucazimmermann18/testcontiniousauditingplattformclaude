@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Kpi, Finding } from "@/types";
 import { AreaTag } from "@/components/ui/AreaTag";
 import { exportFindingsExcel } from "@/lib/export";
@@ -93,6 +93,240 @@ function CommentThread({ kpiId }: { kpiId: string }) {
   );
 }
 
+// ── Maßnahmenplan (Management Response) ─────────────────────
+
+interface FindingResponse {
+  id: string;
+  content: string;
+  responsible: string;
+  plannedDate: string | null;
+  status: "draft" | "submitted" | "accepted" | "rejected";
+  aiEvaluation: string | null;
+  aiScore: number | null;
+  reviewerNote: string | null;
+  submittedAt: string | null;
+}
+
+const RESPONSE_STATUS_LABEL: Record<string, string> = {
+  draft:     "Entwurf",
+  submitted: "Eingereicht",
+  accepted:  "Akzeptiert ✓",
+  rejected:  "Zurückgewiesen ✗",
+};
+const RESPONSE_STATUS_COLOR: Record<string, string> = {
+  draft:     "var(--ink-3)",
+  submitted: "var(--info)",
+  accepted:  "var(--ok)",
+  rejected:  "var(--alert)",
+};
+
+function ResponsePanel({
+  findingId,
+  meRole,
+  onUpdated,
+}: {
+  findingId: string;
+  meRole: string;
+  onUpdated?: () => void;
+}) {
+  const [response, setResponse] = useState<FindingResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewNote, setReviewNote] = useState("");
+  const [showReview, setShowReview] = useState(false);
+  const [form, setForm] = useState({ content: "", responsible: "", plannedDate: "" });
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/findings/${findingId}/response`);
+    if (res.ok) {
+      const data = await res.json();
+      setResponse(data);
+      if (data) setForm({ content: data.content, responsible: data.responsible, plannedDate: data.plannedDate?.slice(0, 10) ?? "" });
+    }
+    setLoading(false);
+  }, [findingId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function submit(action: "save_draft" | "submit") {
+    if (!form.content.trim() || !form.responsible.trim() || !form.plannedDate) return;
+    setSubmitting(true);
+    await fetch(`/api/findings/${findingId}/response`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, action }),
+    });
+    await load();
+    setSubmitting(false);
+    onUpdated?.();
+  }
+
+  async function review(action: "accept" | "reject") {
+    setReviewing(true);
+    await fetch(`/api/findings/${findingId}/response`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, reviewerNote: reviewNote }),
+    });
+    await load();
+    setReviewing(false);
+    setShowReview(false);
+    onUpdated?.();
+  }
+
+  const canRespond = meRole === "owner" || meRole === "admin";
+  const canReview  = meRole === "reviewer" || meRole === "head_of_audit" || meRole === "admin";
+
+  if (loading) return <div className="response-panel"><div className="response-loading">Laden…</div></div>;
+
+  const isEditable = !response || response.status === "draft" || response.status === "rejected";
+
+  return (
+    <div className="response-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="response-panel-head">
+        <span className="response-panel-title">📋 Maßnahmenplan / Stellungnahme</span>
+        {response && (
+          <span className="response-status-badge" style={{ color: RESPONSE_STATUS_COLOR[response.status] }}>
+            {RESPONSE_STATUS_LABEL[response.status]}
+          </span>
+        )}
+      </div>
+
+      {/* AI evaluation */}
+      {response?.aiEvaluation && (
+        <div className="response-ai-eval">
+          <div className="response-ai-head">
+            <span className="response-ai-icon">🤖</span>
+            <span className="response-ai-label">KI-Bewertung der Stellungnahme</span>
+            {response.aiScore !== null && (
+              <span className="response-ai-score" style={{
+                color: response.aiScore >= 0.7 ? "var(--ok)" : response.aiScore >= 0.4 ? "var(--warn)" : "var(--alert)",
+              }}>
+                {Math.round(response.aiScore * 10)}/10
+              </span>
+            )}
+          </div>
+          <p className="response-ai-text">{response.aiEvaluation}</p>
+        </div>
+      )}
+
+      {/* Submitted response view */}
+      {response && response.status !== "draft" && (
+        <div className="response-submitted">
+          <div className="response-field-row">
+            <span className="response-field-label">Verantwortlich</span>
+            <span className="response-field-val">{response.responsible}</span>
+          </div>
+          {response.plannedDate && (
+            <div className="response-field-row">
+              <span className="response-field-label">Geplanter Abschluss</span>
+              <span className="response-field-val">{new Date(response.plannedDate).toLocaleDateString("de-DE")}</span>
+            </div>
+          )}
+          <div className="response-content-box">
+            <div className="response-field-label">Maßnahmenplan</div>
+            <p>{response.content}</p>
+          </div>
+          {response.reviewerNote && (
+            <div className="response-reviewer-note">
+              <span className="response-field-label">Revisor-Notiz</span>
+              <p>{response.reviewerNote}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Edit form */}
+      {(isEditable && canRespond) && (
+        <div className="response-form">
+          {!response && (
+            <p className="response-hint">
+              Als Fachbereich können Sie hier Ihre Stellungnahme und einen konkreten Maßnahmenplan einreichen.
+              Die KI bewertet automatisch die Angemessenheit Ihrer Antwort.
+            </p>
+          )}
+          {response?.status === "rejected" && response.reviewerNote && (
+            <div className="response-rejection-hint">
+              ✗ Zurückgewiesen: „{response.reviewerNote}" — Bitte überarbeiten und erneut einreichen.
+            </div>
+          )}
+          <textarea
+            className="response-textarea"
+            placeholder="Beschreiben Sie konkret: Was wurde/wird unternommen? Welche Kontrollen wurden eingeführt? Was sind die messbaren Ergebnisse?"
+            value={form.content}
+            onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+            rows={4}
+          />
+          <div className="response-form-row">
+            <input
+              className="response-input"
+              placeholder="Verantwortliche Person"
+              value={form.responsible}
+              onChange={(e) => setForm((f) => ({ ...f, responsible: e.target.value }))}
+            />
+            <input
+              type="date"
+              className="response-input"
+              value={form.plannedDate}
+              onChange={(e) => setForm((f) => ({ ...f, plannedDate: e.target.value }))}
+            />
+          </div>
+          <div className="response-form-actions">
+            <button
+              className="btn btn-primary"
+              onClick={() => submit("submit")}
+              disabled={submitting || !form.content.trim() || !form.responsible.trim() || !form.plannedDate}
+            >
+              {submitting ? "KI bewertet…" : "📨 Einreichen (KI bewertet)"}
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => submit("save_draft")}
+              disabled={submitting}
+            >
+              Entwurf speichern
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reviewer actions */}
+      {canReview && response?.status === "submitted" && (
+        <div className="response-review-actions">
+          {!showReview ? (
+            <button className="btn btn-secondary" onClick={() => setShowReview(true)}>
+              Stellungnahme prüfen →
+            </button>
+          ) : (
+            <div className="response-review-form">
+              <textarea
+                className="response-textarea"
+                placeholder="Optionale Notiz zur Entscheidung…"
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                rows={2}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-primary" onClick={() => review("accept")} disabled={reviewing}>
+                  ✓ Akzeptieren (Finding schließen)
+                </button>
+                <button className="btn btn-ghost" style={{ color: "var(--alert)" }} onClick={() => review("reject")} disabled={reviewing}>
+                  ✗ Zurückweisen
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!canRespond && !canReview && !response && (
+        <div className="response-hint">Noch keine Stellungnahme des Fachbereichs.</div>
+      )}
+    </div>
+  );
+}
+
 // ── Finding row ─────────────────────────────────────────────
 
 interface User { id: string; name: string; avatar: string | null }
@@ -107,21 +341,26 @@ function FindingRow({
   kpi,
   users,
   selected,
+  meRole,
   onSelect,
   onOpenKpi,
   onStatusChange,
   onAssigneeChange,
+  onFindingsUpdated,
 }: {
   finding: FindingWithAssignee;
   kpi: Kpi | undefined;
   users: User[];
   selected: boolean;
+  meRole: string;
   onSelect: () => void;
   onOpenKpi: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
   onAssigneeChange: (id: string, assigneeId: string | null) => void;
+  onFindingsUpdated: () => void;
 }) {
   const [showComments, setShowComments] = useState(false);
+  const [showResponse, setShowResponse] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -174,12 +413,29 @@ function FindingRow({
             <option value="in_bearbeitung">In Bearbeitung</option>
             <option value="geschlossen">Geschlossen</option>
           </select>
-          <button className="fr-comment-btn" onClick={(e) => { e.stopPropagation(); setShowComments((v) => !v); }}
-            title="Kommentare">
+          <button
+            className={`fr-comment-btn${showResponse ? " active" : ""}`}
+            onClick={(e) => { e.stopPropagation(); setShowResponse((v) => !v); setShowComments(false); }}
+            title="Maßnahmenplan / Stellungnahme"
+          >
+            📋
+          </button>
+          <button
+            className={`fr-comment-btn${showComments ? " active" : ""}`}
+            onClick={(e) => { e.stopPropagation(); setShowComments((v) => !v); setShowResponse(false); }}
+            title="Kommentare"
+          >
             💬
           </button>
         </div>
       </div>
+      {showResponse && (
+        <ResponsePanel
+          findingId={finding.id}
+          meRole={meRole}
+          onUpdated={onFindingsUpdated}
+        />
+      )}
       {showComments && kpi && <CommentThread kpiId={kpi.id} />}
     </div>
   );
@@ -220,9 +476,11 @@ export function FindingsView({
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [users, setUsers] = useState<User[]>([]);
+  const [meRole, setMeRole] = useState("owner");
 
   useEffect(() => {
     fetch("/api/users").then((r) => r.ok ? r.json() : []).then((data: { id: string; name: string; avatar: string | null }[]) => setUsers(data));
+    fetch("/api/me").then((r) => r.ok ? r.json() : null).then((me) => { if (me?.role) setMeRole(me.role); });
   }, []);
 
   const openFindings = findings.filter((f) => f.status !== "geschlossen");
@@ -389,10 +647,12 @@ export function FindingsView({
               kpi={kpi}
               users={users}
               selected={selected.has(f.id)}
+              meRole={meRole}
               onSelect={() => toggleSelect(f.id)}
               onOpenKpi={onOpenKpi}
               onStatusChange={handleStatusChange}
               onAssigneeChange={handleAssigneeChange}
+              onFindingsUpdated={onFindingsUpdated}
             />
           );
         })}
@@ -417,10 +677,12 @@ export function FindingsView({
                   kpi={kpi}
                   users={users}
                   selected={selected.has(f.id)}
+                  meRole={meRole}
                   onSelect={() => toggleSelect(f.id)}
                   onOpenKpi={onOpenKpi}
                   onStatusChange={handleStatusChange}
                   onAssigneeChange={handleAssigneeChange}
+                  onFindingsUpdated={onFindingsUpdated}
                 />
               );
             })}

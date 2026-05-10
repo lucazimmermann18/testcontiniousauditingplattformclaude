@@ -9,6 +9,7 @@ import { FindingsView } from "./views/FindingsView";
 import { AgentsView } from "./views/AgentsView";
 import { AuditHistoryView } from "./views/AuditHistoryView";
 import { TasksView } from "./views/TasksView";
+import { AssistantView } from "./views/AssistantView";
 import { SearchModal } from "./SearchModal";
 import { OnboardingGate } from "./OnboardingModal";
 import { DashboardSkeleton } from "./ui/Skeleton";
@@ -16,7 +17,7 @@ import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
 
-export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history";
+export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant";
 
 type ToastType = "ok" | "info" | "warn" | "alert";
 
@@ -246,6 +247,7 @@ export function AppShell() {
             />
           )}
           {view === "tasks"     && <TasksView />}
+          {view === "assistant" && <AssistantView kpis={kpis} findings={findings} />}
           {view === "agents"    && <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />}
           {view === "history"   && <AuditHistoryView kpis={kpis} onOpenKpi={openKpi} />}
         </main>

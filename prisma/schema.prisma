@@ -137,6 +137,32 @@ model Finding {
 
   kpi      Kpi   @relation(fields: [kpiId], references: [id])
   assignee User? @relation("FindingAssignee", fields: [assigneeId], references: [id])
+  response FindingResponse?
+}
+
+enum ResponseStatus {
+  draft
+  submitted
+  accepted
+  rejected
+}
+
+model FindingResponse {
+  id              String         @id @default(cuid())
+  findingId       String         @unique
+  finding         Finding        @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  submittedById   String?
+  content         String         // Maßnahmenplan text
+  responsible     String?
+  plannedDate     DateTime?
+  status          ResponseStatus @default(draft)
+  aiEvaluation    String?        // AI assessment text
+  aiScore         Float?         // 0.0 - 1.0 adequacy
+  reviewerNote    String?
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 model Comment {
