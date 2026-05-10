@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Kpi } from "@/types";
 import { AREAS, QUARTERS, CURRENT_QUARTER } from "@/data/audit-data";
+import { exportKpisExcel } from "@/lib/export";
 import { StatusPill, StatusDot } from "@/components/ui/StatusDot";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { RiskBars } from "@/components/ui/RiskBars";
@@ -289,6 +290,14 @@ export function Dashboard({
 
       {/* Filter bar */}
       <div className="filterbar">
+        <div className="filterbar-r" style={{ marginLeft: "auto" }}>
+          <button className="btn-export" onClick={() => exportKpisExcel(kpis)} title="Als Excel exportieren">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+              <path d="M12 3v12M8 11l4 4 4-4M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Excel
+          </button>
+        </div>
         <div className="filterbar-l">
           <span className="filter-label">Bereich</span>
           <div className="filter-chips">

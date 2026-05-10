@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { Kpi } from "@/types";
 import type { AgentResult } from "@/lib/agents/types";
 import { AREAS, QUARTERS, CURRENT_QUARTER } from "@/data/audit-data";
@@ -146,11 +146,27 @@ interface DbComment {
   author: { id: string; name: string; avatar: string | null; role: string };
 }
 
+interface MentionUser { id: string; name: string; avatar: string | null; }
+
+function renderCommentText(text: string) {
+  const parts = text.split(/(@\w[\w\s]*\b)/g);
+  return parts.map((part, i) =>
+    part.startsWith("@")
+      ? <span key={i} className="comment-mention">{part}</span>
+      : part
+  );
+}
+
 function CommentsTab({ kpiId }: { kpiId: string }) {
   const [comments, setComments] = useState<DbComment[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [allUsers, setAllUsers] = useState<MentionUser[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStart, setMentionStart] = useState(0);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/kpis/${kpiId}/comments`);
@@ -159,6 +175,48 @@ function CommentsTab({ kpiId }: { kpiId: string }) {
   }, [kpiId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/users").then((r) => r.ok ? r.json() : []).then(setAllUsers);
+  }, []);
+
+  const mentionMatches = mentionQuery !== null
+    ? allUsers.filter((u) => u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
+    : [];
+
+  function handleTextChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value;
+    const pos = e.target.selectionStart ?? val.length;
+    setText(val);
+
+    // Find @ trigger
+    const before = val.slice(0, pos);
+    const atMatch = before.match(/@([\w\s]*)$/);
+    if (atMatch) {
+      setMentionQuery(atMatch[1]);
+      setMentionStart(pos - atMatch[0].length);
+      setMentionIdx(0);
+    } else {
+      setMentionQuery(null);
+    }
+  }
+
+  function insertMention(user: MentionUser) {
+    const after = text.slice(mentionStart + (mentionQuery?.length ?? 0) + 1);
+    const newText = text.slice(0, mentionStart) + `@${user.name} ` + after;
+    setText(newText);
+    setMentionQuery(null);
+    textareaRef.current?.focus();
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionQuery !== null && mentionMatches.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx((i) => Math.min(i + 1, mentionMatches.length - 1)); return; }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setMentionIdx((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionMatches[mentionIdx]); return; }
+      if (e.key === "Escape") { setMentionQuery(null); return; }
+    }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+  }
 
   async function submit() {
     if (!text.trim()) return;
@@ -168,11 +226,13 @@ function CommentsTab({ kpiId }: { kpiId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
-    if (res.ok) { setText(""); await load(); }
+    if (res.ok) { setText(""); setMentionQuery(null); await load(); }
     setSubmitting(false);
   }
 
   if (loading) return <div className="tab-empty">Laden…</div>;
+
+  const roleLabel: Record<string, string> = { head_of_audit: "Head of Audit", owner: "Owner", reviewer: "Reviewer", admin: "Admin" };
 
   return (
     <div className="comments">
@@ -181,7 +241,6 @@ function CommentsTab({ kpiId }: { kpiId: string }) {
         {comments.map((c) => {
           const initials = c.author.avatar ?? c.author.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
           const time = new Date(c.createdAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-          const roleLabel: Record<string, string> = { head_of_audit: "Head of Audit", owner: "Owner", reviewer: "Reviewer", admin: "Admin" };
           return (
             <div key={c.id} className="comment">
               <div className="comment-avatar">{initials}</div>
@@ -191,20 +250,39 @@ function CommentsTab({ kpiId }: { kpiId: string }) {
                   <span className="comment-role">{roleLabel[c.author.role] ?? c.author.role}</span>
                   <span className="comment-time">{time}</span>
                 </div>
-                <div className="comment-text">{c.text}</div>
+                <div className="comment-text">{renderCommentText(c.text)}</div>
               </div>
             </div>
           );
         })}
       </div>
-      <div className="comment-input-wrap">
+      <div className="comment-input-wrap" style={{ position: "relative" }}>
+        {/* @mention dropdown */}
+        {mentionQuery !== null && mentionMatches.length > 0 && (
+          <div className="mention-dropdown">
+            {mentionMatches.map((u, i) => {
+              const initials = u.avatar ?? u.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+              return (
+                <button
+                  key={u.id}
+                  className={`mention-item${i === mentionIdx ? " mention-item-active" : ""}`}
+                  onMouseDown={(e) => { e.preventDefault(); insertMention(u); }}
+                >
+                  <span className="mention-avatar">{initials}</span>
+                  <span className="mention-name">{u.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <textarea
+          ref={textareaRef}
           className="comment-input"
-          placeholder="Kommentar hinzufügen… (@name für Mentions)"
+          placeholder="Kommentar hinzufügen… @Name für Erwähnungen, ⌘↵ senden"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleTextChange}
+          onKeyDown={handleKey}
           rows={3}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }}
         />
         <button className="btn btn-primary" onClick={submit} disabled={submitting || !text.trim()}>
           {submitting ? "Senden…" : "Absenden"}

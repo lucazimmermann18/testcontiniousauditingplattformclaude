@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import type { ViewId } from "./AppShell";
 import { NotificationBell } from "./NotificationBell";
 
@@ -12,6 +13,7 @@ const NAV_ITEMS = [
   { id: "history"   as const, label: "Audit-Verlauf" },
   { id: "quarters"  as const, label: "Quartalsvergleich" },
   { id: "planning"  as const, label: "Prüfplanung" },
+  { id: "calendar"  as const, label: "📅 Kalender" },
   { id: "assistant" as const, label: "🤖 KI-Assistent", highlight: true },
 ];
 
@@ -53,9 +55,45 @@ export function TopBar({
   const displayName = me?.name ? me.name.split(" ").map((w, i) => i === 0 ? w[0] + "." : w).join(" ") : "…";
   const roleLabel = me?.role ? (ROLE_LABELS[me.role] ?? me.role) : "…";
   const isAdmin = me?.role === "admin" || me?.role === "head_of_audit";
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
     <header className="topbar">
+      {/* Mobile hamburger */}
+      <button
+        className="mobile-nav-toggle"
+        onClick={() => setMobileNavOpen(true)}
+        aria-label="Navigation öffnen"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+          <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      </button>
+
+      {/* Mobile nav overlay */}
+      {mobileNavOpen && (
+        <>
+          <div className="mobile-nav-overlay" onClick={() => setMobileNavOpen(false)} />
+          <div className="mobile-nav-panel">
+            <div className="mobile-nav-head">
+              <span className="mobile-nav-brand">CONTINUUM·AUDIT</span>
+              <button className="mobile-nav-close" onClick={() => setMobileNavOpen(false)}>×</button>
+            </div>
+            <div className="mobile-nav-items">
+              {NAV_ITEMS.map((n) => (
+                <button
+                  key={n.id}
+                  className={`mobile-nav-item${view === n.id ? " active" : ""}${"highlight" in n && n.highlight ? " mobile-nav-item-highlight" : ""}`}
+                  onClick={() => { setView(n.id); setMobileNavOpen(false); }}
+                >
+                  {n.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Brand */}
       <div className="brand">
         <div className="brand-mark">

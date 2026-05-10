@@ -12,6 +12,7 @@ import { TasksView } from "./views/TasksView";
 import { AssistantView } from "./views/AssistantView";
 import { QuarterCompareView } from "./views/QuarterCompareView";
 import { AuditPlanView } from "./views/AuditPlanView";
+import { CalendarView } from "./views/CalendarView";
 import { SearchModal } from "./SearchModal";
 import { OnboardingGate } from "./OnboardingModal";
 import { TourGuide } from "./TourGuide";
@@ -20,7 +21,7 @@ import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
 
-export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant" | "quarters" | "planning";
+export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant" | "quarters" | "planning" | "calendar";
 
 type ToastType = "ok" | "info" | "warn" | "alert";
 
@@ -265,6 +266,7 @@ export function AppShell() {
           {view === "history"   && <AuditHistoryView kpis={kpis} onOpenKpi={openKpi} />}
           {view === "quarters"  && <QuarterCompareView kpis={kpis} />}
           {view === "planning"  && <AuditPlanView kpis={kpis} me={me} />}
+          {view === "calendar"  && <CalendarView kpis={kpis} findings={findings} />}
         </main>
 
         <ActivitySidebar activities={activities} onOpenKpi={openKpi} />
