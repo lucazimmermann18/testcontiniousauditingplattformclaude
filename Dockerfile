@@ -30,8 +30,9 @@ COPY public ./public
 COPY prisma ./prisma
 COPY --from=builder /app/src/generated ./src/generated
 
-# Startup script
+# Startup scripts
 COPY scripts/entrypoint.sh ./entrypoint.sh
+COPY scripts/seed.js ./scripts/seed.js
 RUN chmod +x entrypoint.sh
 
 EXPOSE 3000

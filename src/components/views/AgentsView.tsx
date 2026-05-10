@@ -223,6 +223,13 @@ export function AgentsView({
             {activeRun?.status === "error" && (
               <div className="agent-output-error">
                 <strong>Fehler:</strong> {activeRun.error}
+                {activeRun.error?.includes("API-Key") && (
+                  <div style={{ marginTop: "8px" }}>
+                    <a href="/settings?tab=apikeys" className="agent-setup-link">
+                      → Jetzt API-Key in den Einstellungen hinterlegen
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
