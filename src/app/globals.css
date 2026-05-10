@@ -3648,6 +3648,72 @@ details[open] .finding-closed-summary::before { content: "▼"; }
   color: #fff !important;
 }
 
+/* ── Grouped nav dropdown ────────────────────────────────── */
+.nav-group { position: relative; }
+
+.nav-group-btn { display: flex; align-items: center; gap: 5px; }
+
+.nav-chevron {
+  transition: transform .18s ease;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.nav-chevron-open { transform: rotate(180deg); opacity: 1; }
+
+.nav-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+  padding: 6px;
+  z-index: 200;
+  animation: dropdownFadeIn .15s ease;
+}
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.nav-dropdown-item {
+  display: block; width: 100%;
+  text-align: left;
+  background: none; border: none;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  transition: background .12s;
+  cursor: pointer;
+}
+.nav-dropdown-item:hover { background: var(--surface-2); }
+.nav-dropdown-item.active { background: var(--brand-bg); }
+
+.nav-dropdown-label {
+  font-size: 13px; font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.nav-dropdown-item.active .nav-dropdown-label { color: var(--brand); }
+
+.nav-dropdown-sub {
+  font-size: 11px; color: var(--ink-3);
+  margin-top: 2px; line-height: 1.3;
+}
+
+.nav-dropdown-highlight .nav-dropdown-label {
+  color: var(--brand);
+}
+.nav-dropdown-highlight:hover { background: var(--brand-bg) !important; }
+
+/* Dark mode dropdown */
+[data-theme="dark"] .nav-dropdown {
+  background: var(--surface-2);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
 /* ════════════════════════════════════════════════════════════
    MAASSNAHMENPLAN / RESPONSE PANEL
    ════════════════════════════════════════════════════════════ */

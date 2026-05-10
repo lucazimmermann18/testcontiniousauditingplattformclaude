@@ -1,21 +1,99 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ViewId } from "./AppShell";
 import { NotificationBell } from "./NotificationBell";
 
-const NAV_ITEMS = [
-  { id: "dashboard" as const, label: "Übersicht" },
-  { id: "heatmap"   as const, label: "Risiko-Heatmap" },
-  { id: "timeline"  as const, label: "Quartals-Timeline" },
-  { id: "findings"  as const, label: "Findings" },
-  { id: "tasks"     as const, label: "Aufgaben" },
-  { id: "agents"    as const, label: "KI-Agenten" },
-  { id: "history"   as const, label: "Audit-Verlauf" },
-  { id: "quarters"  as const, label: "Quartalsvergleich" },
-  { id: "planning"  as const, label: "Prüfplanung" },
-  { id: "calendar"  as const, label: "📅 Kalender" },
-  { id: "assistant" as const, label: "🤖 KI-Assistent", highlight: true },
+// ── Nav structure ─────────────────────────────────────────────
+
+type NavItem =
+  | { kind: "link"; id: ViewId; label: string; highlight?: boolean }
+  | { kind: "group"; label: string; icon?: string; children: { id: ViewId; label: string; sub?: string; highlight?: boolean }[] };
+
+const NAV: NavItem[] = [
+  { kind: "link", id: "dashboard", label: "Übersicht" },
+  {
+    kind: "group", label: "Analyse", children: [
+      { id: "heatmap",  label: "Risiko-Heatmap",     sub: "Visuelle Risikoübersicht" },
+      { id: "timeline", label: "Quartals-Timeline",   sub: "Zeitachse aller KPIs" },
+      { id: "quarters", label: "Quartalsvergleich",   sub: "Q/Q Trendanalyse" },
+      { id: "history",  label: "Audit-Verlauf",       sub: "Prüfhistorie & Protokoll" },
+    ],
+  },
+  { kind: "link", id: "findings", label: "Findings" },
+  { kind: "link", id: "tasks",    label: "Aufgaben" },
+  {
+    kind: "group", label: "Planung", children: [
+      { id: "planning",  label: "Prüfplanung", sub: "Jahresplanung & Termine" },
+      { id: "calendar",  label: "Kalender",    sub: "Prüftermine & Fälligkeiten" },
+    ],
+  },
+  {
+    kind: "group", label: "KI", children: [
+      { id: "agents",    label: "KI-Agenten",   sub: "Automatisierte Prüfläufe" },
+      { id: "assistant", label: "KI-Assistent", sub: "Chat & Analyse", highlight: true },
+    ],
+  },
 ];
+
+// IDs that belong to each group (for active highlighting)
+function groupContains(group: Extract<NavItem, { kind: "group" }>, view: ViewId) {
+  return group.children.some((c) => c.id === view);
+}
+
+// ── Dropdown group button ─────────────────────────────────────
+
+function NavGroup({
+  item,
+  view,
+  setView,
+}: {
+  item: Extract<NavItem, { kind: "group" }>;
+  view: ViewId;
+  setView: (v: ViewId) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isActive = groupContains(item, view);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="nav-group" ref={ref}>
+      <button
+        className={`topnav-btn nav-group-btn${isActive ? " active" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        {item.label}
+        <svg className={`nav-chevron${open ? " nav-chevron-open" : ""}`} viewBox="0 0 10 6" width="10" height="6" fill="none">
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="nav-dropdown">
+          {item.children.map((child) => (
+            <button
+              key={child.id}
+              className={`nav-dropdown-item${view === child.id ? " active" : ""}${child.highlight ? " nav-dropdown-highlight" : ""}`}
+              onClick={() => { setView(child.id); setOpen(false); }}
+            >
+              <div className="nav-dropdown-label">{child.label}</div>
+              {child.sub && <div className="nav-dropdown-sub">{child.sub}</div>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Role / user helpers ───────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrator",
@@ -31,6 +109,24 @@ interface MeUser {
   role: string;
   avatar: string | null;
 }
+
+// ── Mobile flat list (all 11 items) ──────────────────────────
+
+const ALL_MOBILE: { id: ViewId; label: string; highlight?: boolean }[] = [
+  { id: "dashboard", label: "Übersicht" },
+  { id: "heatmap",   label: "Risiko-Heatmap" },
+  { id: "timeline",  label: "Quartals-Timeline" },
+  { id: "findings",  label: "Findings" },
+  { id: "tasks",     label: "Aufgaben" },
+  { id: "agents",    label: "KI-Agenten" },
+  { id: "history",   label: "Audit-Verlauf" },
+  { id: "quarters",  label: "Quartalsvergleich" },
+  { id: "planning",  label: "Prüfplanung" },
+  { id: "calendar",  label: "Kalender" },
+  { id: "assistant", label: "KI-Assistent", highlight: true },
+];
+
+// ── TopBar ────────────────────────────────────────────────────
 
 export function TopBar({
   quarter,
@@ -80,10 +176,10 @@ export function TopBar({
               <button className="mobile-nav-close" onClick={() => setMobileNavOpen(false)}>×</button>
             </div>
             <div className="mobile-nav-items">
-              {NAV_ITEMS.map((n) => (
+              {ALL_MOBILE.map((n) => (
                 <button
                   key={n.id}
-                  className={`mobile-nav-item${view === n.id ? " active" : ""}${"highlight" in n && n.highlight ? " mobile-nav-item-highlight" : ""}`}
+                  className={`mobile-nav-item${view === n.id ? " active" : ""}${n.highlight ? " mobile-nav-item-highlight" : ""}`}
                   onClick={() => { setView(n.id); setMobileNavOpen(false); }}
                 >
                   {n.label}
@@ -110,20 +206,23 @@ export function TopBar({
 
       {/* Nav */}
       <nav className="topnav">
-        {NAV_ITEMS.map((n) => (
-          <button
-            key={n.id}
-            className={`topnav-btn${view === n.id ? " active" : ""}${"highlight" in n && n.highlight ? " topnav-btn-highlight" : ""}`}
-            onClick={() => setView(n.id)}
-          >
-            {n.label}
-          </button>
-        ))}
+        {NAV.map((item) =>
+          item.kind === "link" ? (
+            <button
+              key={item.id}
+              className={`topnav-btn${view === item.id ? " active" : ""}${item.highlight ? " topnav-btn-highlight" : ""}`}
+              onClick={() => setView(item.id)}
+            >
+              {item.label}
+            </button>
+          ) : (
+            <NavGroup key={item.label} item={item} view={view} setView={setView} />
+          )
+        )}
       </nav>
 
       {/* Right side */}
       <div className="topbar-right">
-        {/* Search trigger */}
         <button
           className="topbar-search-btn"
           onClick={onOpenSearch}
@@ -139,7 +238,6 @@ export function TopBar({
 
         <NotificationBell onOpenKpi={onOpenKpi} />
 
-        {/* Dark mode toggle */}
         <button
           className="topbar-settings-btn"
           onClick={onToggleDarkMode}
