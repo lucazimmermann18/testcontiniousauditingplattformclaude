@@ -1,11 +1,21 @@
 "use client";
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Kpi } from "@/types";
-import type { AgentResult } from "@/lib/agents/types";
+import type { AgentResult, StageResult } from "@/lib/agents/types";
 import { StatusPill } from "@/components/ui/StatusDot";
 import { Confidence } from "@/components/ui/Confidence";
 import { AreaTag } from "@/components/ui/AreaTag";
 import { AgentResultDisplay } from "@/components/ui/AgentResultDisplay";
+
+type StageId = "scout" | "analyst" | "cross_checker" | "risk_rater";
+
+interface StageState {
+  id: StageId;
+  label: string;
+  agentName: string;
+  status: "pending" | "running" | "done";
+  summary?: string;
+}
 
 interface RunState {
   kpiId: string;
@@ -13,7 +23,59 @@ interface RunState {
   text: string;
   result?: AgentResult;
   error?: string;
+  stages: StageState[];
+  currentStage?: StageId;
 }
+
+const STAGE_DEFS: { id: StageId; label: string; icon: string; description: string }[] = [
+  { id: "scout",         label: "Scout",         icon: "🔍", description: "Datenmuster scannen" },
+  { id: "analyst",       label: "Analyst",        icon: "🧪", description: "Tiefenanalyse" },
+  { id: "cross_checker", label: "Cross-Checker",  icon: "🔗", description: "Kontext & Historie" },
+  { id: "risk_rater",    label: "Risk-Rater",     icon: "⚖️", description: "Finales Urteil" },
+];
+
+function StagePipeline({ stages, currentStage }: { stages: StageState[]; currentStage?: StageId }) {
+  const stageMap = Object.fromEntries(stages.map((s) => [s.id, s]));
+
+  return (
+    <div className="stage-pipeline">
+      {STAGE_DEFS.map((def, i) => {
+        const state = stageMap[def.id];
+        const status = state?.status ?? "pending";
+        const isActive = currentStage === def.id;
+
+        return (
+          <div key={def.id} className={`stage-step stage-step-${status}${isActive ? " stage-step-active" : ""}`}>
+            <div className="stage-connector-left">{i > 0 && <div className={`stage-line${status !== "pending" ? " stage-line-done" : ""}`} />}</div>
+            <div className="stage-dot-wrap">
+              <div className={`stage-dot${isActive ? " stage-dot-pulse" : ""}`}>
+                {status === "done" ? "✓" : isActive ? "▶" : def.icon}
+              </div>
+            </div>
+            <div className="stage-info">
+              <div className="stage-name">{def.label}</div>
+              <div className="stage-desc">
+                {status === "running" || isActive ? (
+                  <span className="stage-running-text">{state?.label ?? def.description}</span>
+                ) : state?.summary ? (
+                  <span className="stage-summary">{state.summary}</span>
+                ) : (
+                  <span className="stage-desc-text">{def.description}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function initStages(): StageState[] {
+  return STAGE_DEFS.map((d) => ({ id: d.id, label: d.description, agentName: d.label, status: "pending" }));
+}
+
+// ── Scheduling ───────────────────────────────────────────────
 
 interface Schedule {
   id: string;
@@ -29,9 +91,7 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    fetch("/api/agents/schedule")
-      .then((r) => r.ok ? r.json() : [])
-      .then(setSchedules);
+    fetch("/api/agents/schedule").then((r) => r.ok ? r.json() : []).then(setSchedules);
   }, []);
 
   async function updateSchedule(kpiId: string, patch: { enabled?: boolean; intervalHours?: number }) {
@@ -51,12 +111,9 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
       const updated = await res.json();
       setSchedules((prev) => {
         const idx = prev.findIndex((s) => s.kpiId === kpiId);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = { ...next[idx], ...updated };
-          return next;
-        }
-        return [...prev, { ...updated, kpi: kpis.find((k) => k.id === kpiId) ? { code: kpis.find((k) => k.id === kpiId)!.code, title: kpis.find((k) => k.id === kpiId)!.title, agent: kpis.find((k) => k.id === kpiId)!.agent } : { code: "", title: "", agent: "" } }];
+        if (idx >= 0) { const next = [...prev]; next[idx] = { ...next[idx], ...updated }; return next; }
+        const kpi = kpis.find((k) => k.id === kpiId);
+        return [...prev, { ...updated, kpi: { code: kpi?.code ?? "", title: kpi?.title ?? "", agent: kpi?.agent ?? "" } }];
       });
     }
     setSaving((s) => ({ ...s, [kpiId]: false }));
@@ -72,7 +129,6 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
           const sched = scheduleMap[kpi.id];
           const enabled = sched?.enabled ?? false;
           const intervalHours = sched?.intervalHours ?? 24;
-          const isSaving = saving[kpi.id];
           return (
             <div key={kpi.id} className="schedule-row">
               <div className="schedule-row-info">
@@ -83,15 +139,14 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
                 <button
                   className={`schedule-toggle${enabled ? " schedule-toggle-on" : ""}`}
                   onClick={() => updateSchedule(kpi.id, { enabled: !enabled })}
-                  disabled={isSaving}
-                  title={enabled ? "Deaktivieren" : "Aktivieren"}
+                  disabled={saving[kpi.id]}
                 >
                   {enabled ? "Ein" : "Aus"}
                 </button>
                 <select
                   className="schedule-interval"
                   value={intervalHours}
-                  disabled={!enabled || isSaving}
+                  disabled={!enabled || saving[kpi.id]}
                   onChange={(e) => updateSchedule(kpi.id, { intervalHours: Number(e.target.value) })}
                 >
                   <option value={1}>Stündlich</option>
@@ -110,13 +165,9 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
   );
 }
 
-export function AgentsView({
-  kpis,
-  onKpisUpdated,
-}: {
-  kpis: Kpi[];
-  onKpisUpdated?: () => void;
-}) {
+// ── Main view ────────────────────────────────────────────────
+
+export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated?: () => void }) {
   const [runs, setRuns] = useState<Record<string, RunState>>({});
   const [activeKpiId, setActiveKpiId] = useState<string | null>(null);
   const abortRefs = useRef<Record<string, AbortController>>({});
@@ -135,17 +186,17 @@ export function AgentsView({
     const ctrl = new AbortController();
     abortRefs.current[kpiId] = ctrl;
 
-    setRuns((prev) => ({ ...prev, [kpiId]: { kpiId, status: "streaming", text: "" } }));
+    setRuns((prev) => ({
+      ...prev,
+      [kpiId]: { kpiId, status: "streaming", text: "", stages: initStages() },
+    }));
     setActiveKpiId(kpiId);
 
     try {
-      const res = await fetch(`/api/agents/${kpiId}`, {
-        method: "POST",
-        signal: ctrl.signal,
-      });
+      const res = await fetch(`/api/agents/${kpiId}`, { method: "POST", signal: ctrl.signal });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Verbindungsfehler" }));
-        setRuns((prev) => ({ ...prev, [kpiId]: { kpiId, status: "error", text: "", error: err.error } }));
+        setRuns((prev) => ({ ...prev, [kpiId]: { kpiId, status: "error", text: "", error: err.error, stages: [] } }));
         return;
       }
 
@@ -159,10 +210,44 @@ export function AgentsView({
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n\n");
         buffer = lines.pop() ?? "";
+
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const chunk = JSON.parse(line.slice(6));
-          if (chunk.type === "text") {
+
+          if (chunk.type === "stage_start") {
+            setRuns((prev) => {
+              const run = prev[kpiId] ?? { kpiId, status: "streaming", text: "", stages: initStages() };
+              return {
+                ...prev,
+                [kpiId]: {
+                  ...run,
+                  currentStage: chunk.stage,
+                  stages: run.stages.map((s) =>
+                    s.id === chunk.stage
+                      ? { ...s, status: "running", label: chunk.label, agentName: chunk.agentName ?? s.agentName }
+                      : s
+                  ),
+                },
+              };
+            });
+          } else if (chunk.type === "stage_done") {
+            setRuns((prev) => {
+              const run = prev[kpiId];
+              if (!run) return prev;
+              return {
+                ...prev,
+                [kpiId]: {
+                  ...run,
+                  stages: run.stages.map((s) =>
+                    s.id === chunk.stage
+                      ? { ...s, status: "done", summary: chunk.stageSummary }
+                      : s
+                  ),
+                },
+              };
+            });
+          } else if (chunk.type === "text") {
             setRuns((prev) => ({
               ...prev,
               [kpiId]: { ...prev[kpiId], text: (prev[kpiId]?.text ?? "") + chunk.content },
@@ -170,7 +255,7 @@ export function AgentsView({
           } else if (chunk.type === "done") {
             setRuns((prev) => ({
               ...prev,
-              [kpiId]: { ...prev[kpiId], status: "done", result: chunk.result },
+              [kpiId]: { ...prev[kpiId], status: "done", result: chunk.result, currentStage: undefined },
             }));
             onKpisUpdated?.();
           } else if (chunk.type === "error") {
@@ -185,7 +270,7 @@ export function AgentsView({
       if ((err as Error).name === "AbortError") return;
       setRuns((prev) => ({
         ...prev,
-        [kpiId]: { kpiId, status: "error", text: "", error: String(err) },
+        [kpiId]: { kpiId, status: "error", text: "", error: String(err), stages: [] },
       }));
     }
   }, [onKpisUpdated]);
@@ -200,29 +285,14 @@ export function AgentsView({
           <h2 className="view-title">KI-Agenten</h2>
           <p className="view-sub">{total} autonome Prüf-Agenten · {running} gerade aktiv</p>
         </div>
-        <a href="/settings" className="btn-settings-link">
-          ⚙ Einstellungen
-        </a>
+        <a href="/settings" className="btn-settings-link">⚙ Einstellungen</a>
       </div>
 
-      {/* Stats */}
       <div className="agents-stats">
-        <div className="agent-stat-card">
-          <div className="asc-num">{total}</div>
-          <div className="asc-label">Agenten gesamt</div>
-        </div>
-        <div className="agent-stat-card agent-stat-ok">
-          <div className="asc-num">{kpis.filter((k) => k.status === "ok").length}</div>
-          <div className="asc-label">Ohne Befund</div>
-        </div>
-        <div className="agent-stat-card agent-stat-running">
-          <div className="asc-num">{running}</div>
-          <div className="asc-label">Läuft gerade</div>
-        </div>
-        <div className="agent-stat-card agent-stat-alert">
-          <div className="asc-num">{kpis.filter((k) => k.status === "finding").length}</div>
-          <div className="asc-label">Finding ausgelöst</div>
-        </div>
+        <div className="agent-stat-card"><div className="asc-num">{total}</div><div className="asc-label">Agenten gesamt</div></div>
+        <div className="agent-stat-card agent-stat-ok"><div className="asc-num">{kpis.filter((k) => k.status === "ok").length}</div><div className="asc-label">Ohne Befund</div></div>
+        <div className="agent-stat-card agent-stat-running"><div className="asc-num">{running}</div><div className="asc-label">Läuft gerade</div></div>
+        <div className="agent-stat-card agent-stat-alert"><div className="asc-num">{kpis.filter((k) => k.status === "finding").length}</div><div className="asc-label">Finding ausgelöst</div></div>
       </div>
 
       <div className="agents-layout">
@@ -230,11 +300,11 @@ export function AgentsView({
         <div className="agents-grid">
           {Object.entries(agentGroups).map(([agentName, agentKpis]) => {
             const kpi = agentKpis[0];
-            const avgConf = agentKpis.filter((k) => k.confidence > 0)
-              .reduce((s, k) => s + k.confidence, 0) /
+            const avgConf = agentKpis.filter((k) => k.confidence > 0).reduce((s, k) => s + k.confidence, 0) /
               Math.max(agentKpis.filter((k) => k.confidence > 0).length, 1);
             const run = runs[kpi.id];
             const isStreaming = run?.status === "streaming";
+            const currentStageDef = run?.currentStage ? STAGE_DEFS.find((d) => d.id === run.currentStage) : null;
 
             return (
               <div
@@ -251,17 +321,18 @@ export function AgentsView({
                   </div>
                   <div style={{ flex: 1 }}>
                     <div className="agent-name">{agentName}</div>
-                    <div className="agent-kpi-ref">
-                      {agentKpis.map((k) => <AreaTag key={k.id} areaId={k.area} />)}
-                    </div>
+                    <div className="agent-kpi-ref">{agentKpis.map((k) => <AreaTag key={k.id} areaId={k.area} />)}</div>
                   </div>
                   <StatusPill status={isStreaming ? "running" : kpi.status} />
                 </div>
 
                 <div className="agent-card-body">
-                  <div className="agent-kpi-title">
-                    {agentKpis.map((k) => k.code).join(", ")} · {kpi.title}
-                  </div>
+                  <div className="agent-kpi-title">{agentKpis.map((k) => k.code).join(", ")} · {kpi.title}</div>
+                  {isStreaming && currentStageDef && (
+                    <div className="agent-stage-badge">
+                      {currentStageDef.icon} {currentStageDef.label} läuft…
+                    </div>
+                  )}
                   <div className="agent-meta-row">
                     <span className="agent-meta-item">
                       <span className="agent-meta-label">Konfidenz</span>
@@ -283,7 +354,7 @@ export function AgentsView({
                     {isStreaming ? (
                       <><span className="login-spinner" style={{ width: 12, height: 12 }} /> Analysiert…</>
                     ) : (
-                      <>▶ Agent starten</>
+                      <>▶ 4-Stage Agent starten</>
                     )}
                   </button>
                 </div>
@@ -307,11 +378,16 @@ export function AgentsView({
               )}
             </div>
 
+            {/* Stage pipeline progress */}
+            {activeRun && activeRun.stages.length > 0 && (
+              <StagePipeline stages={activeRun.stages} currentStage={activeRun.currentStage} />
+            )}
+
             {!activeRun && (
               <div className="agent-output-empty">
-                <p>Klicke auf „Agent starten" um eine KI-Prüfung zu starten.</p>
+                <p>Klicke auf „4-Stage Agent starten" um eine mehrstufige KI-Prüfung zu starten.</p>
                 <p style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--ink-3)" }}>
-                  Der Agent analysiert Mock-Daten für {activeKpi.code} und gibt eine strukturierte Prüfungseinschätzung aus.
+                  Scout → Analyst → Cross-Checker → Risk-Rater · Spezialisierter Experte für {activeKpi.code}
                 </p>
               </div>
             )}
@@ -334,7 +410,9 @@ export function AgentsView({
                 {activeRun.result ? (
                   <AgentResultDisplay result={activeRun.result} />
                 ) : (
-                  <pre className="agent-stream-pre">{activeRun.text}<span className="agent-cursor">▋</span></pre>
+                  activeRun.currentStage && (
+                    <pre className="agent-stream-pre">{activeRun.text}<span className="agent-cursor">▋</span></pre>
+                  )
                 )}
               </div>
             )}
@@ -342,7 +420,6 @@ export function AgentsView({
         )}
       </div>
 
-      {/* Scheduling */}
       <SchedulingSection kpis={kpis} />
     </div>
   );

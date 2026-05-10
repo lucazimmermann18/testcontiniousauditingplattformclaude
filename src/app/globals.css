@@ -1983,3 +1983,159 @@ details[open] .finding-closed-summary::before { content: "▼"; }
   margin-bottom: 12px;
   gap: 10px;
 }
+
+/* ── 4-Stage Pipeline UI ─────────────────────────────────── */
+.stage-pipeline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+.stage-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  min-width: 80px;
+  text-align: center;
+}
+.stage-connector-left {
+  position: absolute;
+  left: 0;
+  top: 14px;
+  width: 50%;
+  pointer-events: none;
+}
+.stage-line {
+  height: 2px;
+  background: var(--line);
+  width: 100%;
+}
+.stage-line-done { background: var(--ok); }
+.stage-dot-wrap { position: relative; z-index: 1; margin-bottom: 6px; }
+.stage-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem;
+  color: var(--ink-4);
+  transition: all 0.2s;
+}
+.stage-step-running .stage-dot,
+.stage-step-active .stage-dot {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.stage-step-done .stage-dot {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.stage-dot-pulse {
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(41,82,255,0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(41,82,255,0); }
+}
+.stage-info { width: 100%; }
+.stage-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-2);
+  margin-bottom: 2px;
+}
+.stage-step-done .stage-name { color: var(--ok-fg); }
+.stage-step-running .stage-name,
+.stage-step-active .stage-name { color: var(--brand); }
+.stage-desc { font-size: 0.68rem; color: var(--ink-4); line-height: 1.3; }
+.stage-running-text { color: var(--brand); animation: text-pulse 1.5s ease-in-out infinite; }
+@keyframes text-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.stage-summary { color: var(--ok-fg); }
+
+/* ── Agent stage badge on card ───────────────────────────── */
+.agent-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brand);
+  background: var(--brand-bg);
+  border-radius: 20px;
+  padding: 2px 8px;
+  margin: 4px 0;
+  animation: text-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── AgentResultDisplay — Stage cards ────────────────────── */
+.ar-stages { margin-top: 1rem; }
+.ar-stages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.ar-stage-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.ar-stage-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.ar-stage-icon { font-size: 0.9rem; }
+.ar-stage-name { font-size: 0.8rem; font-weight: 700; }
+.ar-stage-agent { font-size: 0.72rem; color: var(--ink-4); margin-bottom: 6px; }
+.ar-stage-summary { font-size: 0.8rem; color: var(--ink-2); line-height: 1.4; }
+.ar-stage-findings {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ar-stage-findings li {
+  font-size: 0.73rem;
+  color: var(--ink-3);
+  padding-left: 10px;
+  position: relative;
+}
+.ar-stage-findings li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--brand);
+}
+
+/* ── Historical trend + cross-KPI ────────────────────────── */
+.ar-historical,
+.ar-cross-kpi {
+  margin-top: 1rem;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: 8px;
+}
+.ar-historical-text,
+.ar-cross-kpi-text {
+  font-size: 0.83rem;
+  color: var(--ink-2);
+  line-height: 1.5;
+  margin-top: 4px;
+}
