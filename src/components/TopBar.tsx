@@ -10,6 +10,8 @@ const NAV_ITEMS = [
   { id: "tasks"     as const, label: "Aufgaben" },
   { id: "agents"    as const, label: "KI-Agenten" },
   { id: "history"   as const, label: "Audit-Verlauf" },
+  { id: "quarters"  as const, label: "Quartalsvergleich" },
+  { id: "planning"  as const, label: "Prüfplanung" },
   { id: "assistant" as const, label: "🤖 KI-Assistent", highlight: true },
 ];
 

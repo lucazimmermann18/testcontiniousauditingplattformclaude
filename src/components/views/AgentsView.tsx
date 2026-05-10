@@ -17,6 +17,12 @@ interface StageState {
   summary?: string;
 }
 
+interface LogLine {
+  ts: string;
+  kind: "info" | "stage" | "done" | "error" | "text";
+  msg: string;
+}
+
 interface RunState {
   kpiId: string;
   status: "streaming" | "done" | "error";
@@ -25,6 +31,11 @@ interface RunState {
   error?: string;
   stages: StageState[];
   currentStage?: StageId;
+  log: LogLine[];
+}
+
+function nowTs() {
+  return new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 const STAGE_DEFS: { id: StageId; label: string; icon: string; description: string }[] = [
@@ -73,6 +84,33 @@ function StagePipeline({ stages, currentStage }: { stages: StageState[]; current
 
 function initStages(): StageState[] {
   return STAGE_DEFS.map((d) => ({ id: d.id, label: d.description, agentName: d.label, status: "pending" }));
+}
+
+// ── Terminal Log ─────────────────────────────────────────────
+
+function AgentTerminal({ log, status }: { log: LogLine[]; status: RunState["status"] }) {
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [log]);
+
+  return (
+    <div className="agent-terminal">
+      <div className="agent-terminal-bar">
+        <span className="atb-dot atb-red" /><span className="atb-dot atb-yellow" /><span className="atb-dot atb-green" />
+        <span className="atb-title">audit-agent — log</span>
+        {status === "streaming" && <span className="atb-live">● LIVE</span>}
+      </div>
+      <div className="agent-terminal-body">
+        {log.map((line, i) => (
+          <div key={i} className={`atl-line atl-${line.kind}`}>
+            <span className="atl-ts">[{line.ts}]</span>
+            <span className="atl-msg">{line.msg}</span>
+          </div>
+        ))}
+        {status === "streaming" && <div className="atl-cursor">█</div>}
+        <div ref={endRef} />
+      </div>
+    </div>
+  );
 }
 
 // ── Scheduling ───────────────────────────────────────────────
@@ -181,14 +219,23 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
   const running = kpis.filter((k) => k.status === "running").length;
   const total = Object.keys(agentGroups).length;
 
+  const addLog = useCallback((kpiId: string, kind: LogLine["kind"], msg: string) => {
+    setRuns((prev) => {
+      const run = prev[kpiId];
+      if (!run) return prev;
+      return { ...prev, [kpiId]: { ...run, log: [...run.log, { ts: nowTs(), kind, msg }] } };
+    });
+  }, []);
+
   const startAgent = useCallback(async (kpiId: string) => {
     abortRefs.current[kpiId]?.abort();
     const ctrl = new AbortController();
     abortRefs.current[kpiId] = ctrl;
 
+    const initLog: LogLine[] = [{ ts: nowTs(), kind: "info", msg: "Initialisiere 4-Stage Agent Pipeline…" }];
     setRuns((prev) => ({
       ...prev,
-      [kpiId]: { kpiId, status: "streaming", text: "", stages: initStages() },
+      [kpiId]: { kpiId, status: "streaming", text: "", stages: initStages(), log: initLog },
     }));
     setActiveKpiId(kpiId);
 
@@ -196,7 +243,7 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
       const res = await fetch(`/api/agents/${kpiId}`, { method: "POST", signal: ctrl.signal });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Verbindungsfehler" }));
-        setRuns((prev) => ({ ...prev, [kpiId]: { kpiId, status: "error", text: "", error: err.error, stages: [] } }));
+        setRuns((prev) => ({ ...prev, [kpiId]: { kpiId, status: "error", text: "", error: err.error, stages: [], log: [{ ts: nowTs(), kind: "error", msg: err.error }] } }));
         return;
       }
 
@@ -216,8 +263,10 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
           const chunk = JSON.parse(line.slice(6));
 
           if (chunk.type === "stage_start") {
+            const stageDef = STAGE_DEFS.find((d) => d.id === chunk.stage);
+            addLog(kpiId, "stage", `▶ Stage ${stageDef?.icon ?? ""} ${stageDef?.label ?? chunk.stage} gestartet — ${chunk.label ?? stageDef?.description}`);
             setRuns((prev) => {
-              const run = prev[kpiId] ?? { kpiId, status: "streaming", text: "", stages: initStages() };
+              const run = prev[kpiId] ?? { kpiId, status: "streaming", text: "", stages: initStages(), log: [] };
               return {
                 ...prev,
                 [kpiId]: {
@@ -232,6 +281,8 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
               };
             });
           } else if (chunk.type === "stage_done") {
+            const stageDef = STAGE_DEFS.find((d) => d.id === chunk.stage);
+            addLog(kpiId, "done", `✓ ${stageDef?.label ?? chunk.stage} abgeschlossen${chunk.stageSummary ? ` — ${chunk.stageSummary.slice(0, 80)}` : ""}`);
             setRuns((prev) => {
               const run = prev[kpiId];
               if (!run) return prev;
@@ -253,12 +304,14 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
               [kpiId]: { ...prev[kpiId], text: (prev[kpiId]?.text ?? "") + chunk.content },
             }));
           } else if (chunk.type === "done") {
+            addLog(kpiId, "done", `✓ Analyse abgeschlossen — Status: ${chunk.result?.status?.toUpperCase() ?? "OK"} · Konfidenz: ${Math.round((chunk.result?.confidence ?? 0) * 100)}%`);
             setRuns((prev) => ({
               ...prev,
               [kpiId]: { ...prev[kpiId], status: "done", result: chunk.result, currentStage: undefined },
             }));
             onKpisUpdated?.();
           } else if (chunk.type === "error") {
+            addLog(kpiId, "error", `✗ Fehler: ${chunk.error}`);
             setRuns((prev) => ({
               ...prev,
               [kpiId]: { ...prev[kpiId], status: "error", error: chunk.error },
@@ -270,10 +323,10 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
       if ((err as Error).name === "AbortError") return;
       setRuns((prev) => ({
         ...prev,
-        [kpiId]: { kpiId, status: "error", text: "", error: String(err), stages: [] },
+        [kpiId]: { ...prev[kpiId], kpiId, status: "error", text: "", error: String(err), stages: prev[kpiId]?.stages ?? [], log: [...(prev[kpiId]?.log ?? []), { ts: nowTs(), kind: "error", msg: String(err) }] },
       }));
     }
-  }, [onKpisUpdated]);
+  }, [onKpisUpdated, addLog]);
 
   const activeRun = activeKpiId ? runs[activeKpiId] : null;
   const activeKpi = activeKpiId ? kpis.find((k) => k.id === activeKpiId) : null;
@@ -415,6 +468,11 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
                   )
                 )}
               </div>
+            )}
+
+            {/* Live terminal log */}
+            {activeRun && activeRun.log.length > 0 && (
+              <AgentTerminal log={activeRun.log} status={activeRun.status} />
             )}
           </div>
         )}

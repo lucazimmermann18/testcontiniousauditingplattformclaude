@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { callAgentOnce } from "@/lib/agents/provider";
+import { sendResponseSubmittedEmail, sendResponseReviewedEmail } from "@/lib/email";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -79,6 +80,16 @@ export async function POST(req: Request, { params }: Params) {
           metadata: JSON.stringify({ findingId: id }),
         },
       });
+      // Send email to owner
+      const owner = await db.user.findUnique({ where: { id: finding.ownerId }, select: { email: true, name: true } });
+      if (owner) {
+        sendResponseReviewedEmail({
+          toEmail: owner.email, toName: owner.name,
+          findingTitle: finding.title,
+          accepted: parsed.data.action === "accept",
+          reviewerNote: parsed.data.reviewerNote,
+        }).catch(() => {});
+      }
     }
 
     return NextResponse.json(updated);
@@ -164,8 +175,11 @@ Antworte AUSSCHLIESSLICH mit JSON: { "score": <0-10>, "evaluation": "<2-3 Sätze
       },
     });
 
-    // Notify reviewer
-    const kpiFull = await db.kpi.findUnique({ where: { id: finding.kpiId }, select: { reviewerId: true } });
+    // Notify reviewer + send email
+    const kpiFull = await db.kpi.findUnique({
+      where: { id: finding.kpiId },
+      select: { reviewerId: true, code: true, title: true },
+    });
     if (kpiFull) {
       await db.notification.create({
         data: {
@@ -175,6 +189,16 @@ Antworte AUSSCHLIESSLICH mit JSON: { "score": <0-10>, "evaluation": "<2-3 Sätze
           metadata: JSON.stringify({ findingId: id }),
         },
       });
+      const reviewer = await db.user.findUnique({ where: { id: kpiFull.reviewerId }, select: { email: true, name: true } });
+      const submitter = await db.user.findUnique({ where: { id: session.user!.id! }, select: { name: true } });
+      if (reviewer) {
+        sendResponseSubmittedEmail({
+          toEmail: reviewer.email, toName: reviewer.name,
+          findingTitle: finding.title, kpiCode: kpiFull.code,
+          ownerName: submitter?.name ?? "Fachbereich",
+          aiScore: aiScore,
+        }).catch(() => {});
+      }
     }
   }
 

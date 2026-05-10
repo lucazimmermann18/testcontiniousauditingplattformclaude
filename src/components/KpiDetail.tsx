@@ -440,25 +440,72 @@ function ApprovalTab({ kpiId, me }: { kpiId: string; me: { role: string } | null
 
 // ─── History ─────────────────────────────────────────────────
 
+interface AuditRunRecord {
+  id: string;
+  status: string;
+  confidence: number;
+  summary: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+}
+
 function HistoryView({ kpi }: { kpi: Kpi }) {
-  const rows = QUARTERS.map((q, i) => ({
-    quarter: q, value: kpi.trend[i] ?? "—",
-    status: i === QUARTERS.length - 1 ? kpi.status : "ok",
-  })).reverse();
+  const [runs, setRuns] = useState<AuditRunRecord[]>([]);
+  const [loadingRuns, setLoadingRuns] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/audit-runs?kpiId=${kpi.id}&limit=20`)
+      .then((r) => r.ok ? r.json() : [])
+      .then(setRuns)
+      .finally(() => setLoadingRuns(false));
+  }, [kpi.id]);
+
+  const statusIcon = (s: string) =>
+    s === "ok" ? "✓" : s === "finding" ? "⛔" : s === "review" ? "⚠" : s === "error" ? "✗" : "◌";
+
+  if (loadingRuns) return <div className="tab-empty">Lade Prüfläufe…</div>;
+
   return (
-    <div className="history-table-wrap">
-      <table className="history-table">
-        <thead><tr><th>Quartal</th><th>Wert</th><th>Status</th></tr></thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className={i === 0 ? "history-current" : ""}>
-              <td>{r.quarter}{i === 0 ? " (aktuell)" : ""}</td>
-              <td className="tabular">{r.value}</td>
-              <td><StatusPill status={r.status as any} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="kpi-run-history">
+      {/* Quarter trend row */}
+      <div className="krh-trend-row">
+        {QUARTERS.map((q, i) => (
+          <div key={q} className="krh-quarter-cell">
+            <div className="krh-q-label">{q}</div>
+            <div className={`krh-q-bar${i === QUARTERS.length - 1 ? " krh-q-bar-current" : ""}`}
+              style={{ height: `${Math.max(8, (kpi.trend[i] ?? 0) / Math.max(...kpi.trend, 1) * 48)}px` }} />
+            <div className="krh-q-val">{kpi.trend[i] ?? "—"}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Real audit run list */}
+      <div className="krh-runs-title">Agent-Läufe ({runs.length})</div>
+      {runs.length === 0 && <div className="tab-empty">Noch keine Agent-Läufe aufgezeichnet.</div>}
+      <div className="krh-runs">
+        {runs.map((run) => {
+          const dt = new Date(run.startedAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+          const dur = run.durationMs ? `${(run.durationMs / 1000).toFixed(1)}s` : "—";
+          const isOpen = expanded === run.id;
+          return (
+            <div key={run.id} className={`krh-run krh-run-${run.status}`}>
+              <div className="krh-run-head" onClick={() => setExpanded(isOpen ? null : run.id)}>
+                <span className={`krh-run-icon krh-run-icon-${run.status}`}>{statusIcon(run.status)}</span>
+                <span className="krh-run-dt">{dt}</span>
+                <span className="krh-run-dur">{dur}</span>
+                <StatusPill status={run.status as any} />
+                <span className="krh-run-conf">{Math.round(run.confidence * 100)}%</span>
+                <span className="krh-run-chevron">{isOpen ? "▲" : "▼"}</span>
+              </div>
+              {isOpen && run.summary && (
+                <div className="krh-run-summary">{run.summary}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

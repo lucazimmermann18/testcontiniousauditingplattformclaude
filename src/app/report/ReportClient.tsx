@@ -236,16 +236,58 @@ export function ReportClient({
         </div>
 
         <div className="report-wrap">
-          {/* Header */}
+          {/* Cover page header */}
           <div className="report-header">
-            <div className="report-header-brand">Continuum Audit Platform</div>
-            <div className="report-header-title">Audit-Bericht {quarter}</div>
-            <div className="report-header-meta">
-              Erstellt am {genDate} · {total} KPIs · {totalRuns} Prüfläufe
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div className="report-header-brand">Continuum Audit Platform</div>
+                <div className="report-header-title">Audit-Bericht {quarter}</div>
+                <div className="report-header-meta">
+                  Erstellt am {genDate} · {total} KPIs · {totalRuns} Prüfläufe · Vertraulich
+                </div>
+              </div>
+              <div style={{ textAlign: "right", opacity: 0.5 }}>
+                <svg viewBox="0 0 24 24" width="36" height="36" fill="none">
+                  <rect x="2" y="2" width="20" height="20" rx="3" stroke="white" strokeWidth="1.5" />
+                  <path d="M7 12h3l2-5 3 10 2-5h2" stroke="white" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+            {/* Risk gauge strip */}
+            <div style={{ marginTop: "2rem", display: "flex", gap: "1rem" }}>
+              {[
+                { label: "Gesamtrisiko", value: findings.filter((f) => f.severity === "hoch").length > 2 ? "HOCH" : findings.length > 0 ? "MITTEL" : "NIEDRIG", color: findings.filter((f) => f.severity === "hoch").length > 2 ? "#ef4444" : findings.length > 0 ? "#f59e0b" : "#22c55e" },
+                { label: "Prüfabdeckung", value: `${Math.round((statusCounts.ok + statusCounts.finding + statusCounts.review) / Math.max(total, 1) * 100)}%`, color: "#60a5fa" },
+                { label: "Ø KI-Konfidenz", value: `${Math.round(avgConfidence * 100)}%`, color: avgConfidence >= 0.8 ? "#22c55e" : avgConfidence >= 0.6 ? "#f59e0b" : "#ef4444" },
+              ].map((g) => (
+                <div key={g.label} style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                  <div style={{ fontSize: "1.25rem", fontWeight: 800, color: g.color }}>{g.value}</div>
+                  <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{g.label}</div>
+                </div>
+              ))}
             </div>
           </div>
 
           <div className="report-body">
+            {/* Table of contents */}
+            <div className="report-section-title">Inhaltsverzeichnis</div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <tbody>
+                {[
+                  ["1", "Executive Summary", ""],
+                  ["2", "KPI-Übersicht nach Bereich", `${total} KPIs`],
+                  ["3", "Offene Findings", `${findings.length} Finding${findings.length !== 1 ? "s" : ""}`],
+                  ["4", "Risikoverteilung nach Bereich", "Bereichsanalyse"],
+                ].map(([num, title, note]) => (
+                  <tr key={num} style={{ borderBottom: "1px dotted #e5e7eb" }}>
+                    <td style={{ padding: "6px 8px", width: 24, color: "#9ca3af", fontWeight: 600 }}>{num}</td>
+                    <td style={{ padding: "6px 8px", fontWeight: 500 }}>{title}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", color: "#6b7280", fontSize: "0.8rem" }}>{note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
             {/* Executive Summary */}
             <div className="report-section-title">Executive Summary</div>
             <div className="kpi-stat-grid">
@@ -380,12 +422,45 @@ export function ReportClient({
                 ))}
               </>
             )}
-          </div>
+
+            {/* Area risk distribution */}
+            <div className="report-section-title page-break">Risikoverteilung nach Bereich</div>
+            <table className="report-table">
+              <thead>
+                <tr><th>Bereich</th><th>KPIs</th><th>OK</th><th>Review</th><th>Finding</th><th>Ø Konfidenz</th><th>Risikostufe</th></tr>
+              </thead>
+              <tbody>
+                {Object.entries(byArea).map(([areaName, areaKpis]) => {
+                  const aOk = areaKpis.filter((k) => k.status === "ok").length;
+                  const aRev = areaKpis.filter((k) => k.status === "review").length;
+                  const aFind = areaKpis.filter((k) => k.status === "finding").length;
+                  const aConf = areaKpis.filter((k) => k.confidence > 0).reduce((s, k) => s + k.confidence, 0) / Math.max(areaKpis.filter((k) => k.confidence > 0).length, 1);
+                  const riskLevel = aFind > 0 ? "HOCH" : aRev > 0 ? "MITTEL" : "NIEDRIG";
+                  const riskColor = aFind > 0 ? "#ef4444" : aRev > 0 ? "#f59e0b" : "#22c55e";
+                  return (
+                    <tr key={areaName}>
+                      <td style={{ fontWeight: 500 }}>{areaName}</td>
+                      <td className="tabular">{areaKpis.length}</td>
+                      <td style={{ color: "#10b981", fontWeight: 600 }}>{aOk}</td>
+                      <td style={{ color: "#f59e0b", fontWeight: 600 }}>{aRev}</td>
+                      <td style={{ color: "#ef4444", fontWeight: 600 }}>{aFind}</td>
+                      <td className="tabular">{Math.round(aConf * 100)}%</td>
+                      <td>
+                        <span style={{ background: riskColor + "20", color: riskColor, padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", fontWeight: 700 }}>
+                          {riskLevel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>{/* end report-body */}
 
           {/* Footer */}
           <div className="report-footer">
-            <span>Continuum Audit Platform · Vertraulich</span>
-            <span>{quarter} · Erstellt {new Date(generatedAt).toLocaleDateString("de-DE")}</span>
+            <span>Continuum Audit Platform · Vertraulich · Interne Verwendung</span>
+            <span>{quarter} · Erstellt {new Date(generatedAt).toLocaleDateString("de-DE")} · {totalRuns} Prüfläufe</span>
           </div>
         </div>
       </div>

@@ -10,14 +10,17 @@ import { AgentsView } from "./views/AgentsView";
 import { AuditHistoryView } from "./views/AuditHistoryView";
 import { TasksView } from "./views/TasksView";
 import { AssistantView } from "./views/AssistantView";
+import { QuarterCompareView } from "./views/QuarterCompareView";
+import { AuditPlanView } from "./views/AuditPlanView";
 import { SearchModal } from "./SearchModal";
 import { OnboardingGate } from "./OnboardingModal";
+import { TourGuide } from "./TourGuide";
 import { DashboardSkeleton } from "./ui/Skeleton";
 import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
 
-export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant";
+export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant" | "quarters" | "planning";
 
 type ToastType = "ok" | "info" | "warn" | "alert";
 
@@ -98,6 +101,16 @@ export function AppShell() {
       fetchActivities(),
       fetch("/api/me").then((r) => r.ok ? r.json() : null).then(setMe),
     ]).finally(() => setLoading(false));
+  }, [fetchKpis, fetchFindings, fetchActivities]);
+
+  // 15 s live-refresh
+  useEffect(() => {
+    const id = setInterval(() => {
+      fetchKpis();
+      fetchFindings();
+      fetchActivities();
+    }, 15_000);
+    return () => clearInterval(id);
   }, [fetchKpis, fetchFindings, fetchActivities]);
 
   const openKpi = (id: string) => setOpenKpiId(id);
@@ -250,6 +263,8 @@ export function AppShell() {
           {view === "assistant" && <AssistantView kpis={kpis} findings={findings} />}
           {view === "agents"    && <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />}
           {view === "history"   && <AuditHistoryView kpis={kpis} onOpenKpi={openKpi} />}
+          {view === "quarters"  && <QuarterCompareView kpis={kpis} />}
+          {view === "planning"  && <AuditPlanView kpis={kpis} me={me} />}
         </main>
 
         <ActivitySidebar activities={activities} onOpenKpi={openKpi} />
@@ -266,6 +281,7 @@ export function AppShell() {
       )}
 
       <OnboardingGate hasApiKey={true} />
+      <TourGuide />
 
       {searchOpen && (
         <SearchModal
