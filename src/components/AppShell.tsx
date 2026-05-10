@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { TopBar } from "./TopBar";
 import { ActivitySidebar } from "./ActivitySidebar";
 import { Dashboard } from "./views/Dashboard";
@@ -34,6 +34,7 @@ export function AppShell() {
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const rerunAbortRefs = useRef<Record<string, AbortController>>({});
 
   const showToast = (msg: string, type: ToastType) => setToast({ msg, type });
 
@@ -66,31 +67,75 @@ export function AppShell() {
 
   const handleAction = async (action: string, kpi: Kpi) => {
     if (action === "approve") {
-      setKpis((prev) => prev.map((k) => k.id === kpi.id ? { ...k, status: "ok", lastRun: "gerade eben" } : k));
-      await fetch(`/api/kpis/${kpi.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ok", lastRun: "gerade eben" }) });
+      await fetch(`/api/kpis/${kpi.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ok", lastRun: "gerade eben" }),
+      });
       showToast(`${kpi.code} als geprüft freigegeben`, "ok");
       closeKpi();
+      fetchKpis();
       fetchActivities();
     } else if (action === "rerun") {
-      setKpis((prev) => prev.map((k) => k.id === kpi.id ? { ...k, status: "running", confidence: 0, lastRun: "läuft" } : k));
-      await fetch(`/api/kpis/${kpi.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "running", confidence: 0, lastRun: "läuft" }) });
+      rerunAbortRefs.current[kpi.id]?.abort();
+      const ctrl = new AbortController();
+      rerunAbortRefs.current[kpi.id] = ctrl;
+
+      setKpis((prev) => prev.map((k) => k.id === kpi.id ? { ...k, status: "running" } : k));
+      await fetch(`/api/kpis/${kpi.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "running" }),
+      });
       showToast(`${kpi.code} – Agent neu gestartet`, "info");
-      setTimeout(async () => {
-        setKpis((prev) => prev.map((k) => k.id === kpi.id ? { ...k, status: "ok", confidence: 0.94, lastRun: "vor wenigen Sek." } : k));
-        await fetch(`/api/kpis/${kpi.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ok", confidence: 0.94, lastRun: "vor wenigen Sek." }) });
-        fetchActivities();
-      }, 3500);
+
+      try {
+        const res = await fetch(`/api/agents/${kpi.id}`, { method: "POST", signal: ctrl.signal });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const chunk = JSON.parse(line.slice(6));
+              if (chunk.type === "done" || chunk.type === "error") {
+                fetchKpis();
+                fetchFindings();
+                fetchActivities();
+              }
+            }
+          }
+        }
+      } catch (err: unknown) {
+        if ((err as Error).name !== "AbortError") {
+          fetchKpis();
+        }
+      }
     } else if (action === "snooze") {
-      setKpis((prev) => prev.map((k) => k.id === kpi.id ? { ...k, status: "review" } : k));
-      await fetch(`/api/kpis/${kpi.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "review" }) });
+      await fetch(`/api/kpis/${kpi.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "review" }),
+      });
       showToast(`${kpi.code} an Reviewer eskaliert`, "warn");
       closeKpi();
+      fetchKpis();
       fetchActivities();
     } else if (action === "finding") {
-      setKpis((prev) => prev.map((k) => k.id === kpi.id ? { ...k, status: "finding" } : k));
-      await fetch(`/api/kpis/${kpi.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "finding" }) });
+      await fetch(`/api/kpis/${kpi.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "finding" }),
+      });
       showToast(`Finding für ${kpi.code} angelegt`, "alert");
       closeKpi();
+      fetchKpis();
       fetchFindings();
       fetchActivities();
     }
@@ -132,15 +177,30 @@ export function AppShell() {
           )}
           {view === "heatmap"  && <HeatmapView  kpis={kpis} onOpenKpi={openKpi} />}
           {view === "timeline" && <TimelineView  kpis={kpis} />}
-          {view === "findings" && <FindingsView  kpis={kpis} findings={findings} onOpenKpi={openKpi} />}
-          {view === "agents"   && <AgentsView    kpis={kpis} onKpisUpdated={fetchKpis} />}
+          {view === "findings" && (
+            <FindingsView
+              kpis={kpis}
+              findings={findings}
+              onOpenKpi={openKpi}
+              onFindingsUpdated={fetchFindings}
+            />
+          )}
+          {view === "agents" && (
+            <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />
+          )}
         </main>
 
         <ActivitySidebar activities={activities} onOpenKpi={openKpi} />
       </div>
 
       {openKpiObj && (
-        <KpiDetail kpi={openKpiObj} onClose={closeKpi} onAction={handleAction} me={me} />
+        <KpiDetail
+          kpi={openKpiObj}
+          onClose={closeKpi}
+          onAction={handleAction}
+          me={me}
+          onKpiUpdated={fetchKpis}
+        />
       )}
 
       {toast && (

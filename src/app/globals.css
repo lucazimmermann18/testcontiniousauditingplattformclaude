@@ -1410,3 +1410,227 @@ input, textarea, select { font-family: inherit; }
   font-weight: 500;
 }
 .agent-setup-link:hover { text-decoration: underline; }
+
+/* ── Agent result: no-run state ───────────────────────────── */
+.ar-no-run {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 0.875rem;
+}
+
+/* ── KPI value inline edit ───────────────────────────────── */
+.ar-value-edit { margin-top: 1rem; }
+.ar-value-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ar-value-label { font-size: 0.8rem; color: var(--ink-3); min-width: 40px; }
+.ar-value-input {
+  width: 100px;
+  padding: 4px 8px;
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink-1);
+}
+.ar-value-input:focus { outline: none; border-color: var(--accent); }
+.ar-edit-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.ar-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ar-save-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #fff;
+  font-weight: 500;
+}
+.ar-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Findings view: status select ───────────────────────── */
+.fr-actions {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+.finding-status-select {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.finding-status-select:focus { outline: none; border-color: var(--accent); }
+.finding-status-select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Findings create form ───────────────────────────────── */
+.finding-create-form {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fcf-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.fcf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 160px;
+}
+.fcf-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fcf-input,
+.fcf-select,
+.fcf-textarea {
+  padding: 7px 10px;
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink-1);
+  font-family: inherit;
+}
+.fcf-input:focus,
+.fcf-select:focus,
+.fcf-textarea:focus { outline: none; border-color: var(--accent); }
+.fcf-textarea { resize: vertical; }
+.fcf-error {
+  font-size: 0.8rem;
+  color: var(--alert);
+  background: var(--alert-bg);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.fcf-actions { display: flex; justify-content: flex-end; }
+
+/* ── Closed findings section ────────────────────────────── */
+.finding-closed-section { margin-top: 20px; }
+.finding-closed-summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 8px 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.finding-closed-summary::marker,
+.finding-closed-summary::-webkit-details-marker { display: none; }
+.finding-closed-summary::before { content: "▶"; font-size: 0.7rem; }
+details[open] .finding-closed-summary::before { content: "▼"; }
+
+/* ── Schedule section ───────────────────────────────────── */
+.schedule-section {
+  margin-top: 32px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.schedule-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 12px;
+}
+.schedule-table { display: flex; flex-direction: column; gap: 8px; }
+.schedule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.schedule-row-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.schedule-code {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.schedule-agent {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schedule-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.schedule-toggle {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  transition: background 0.15s, color 0.15s;
+}
+.schedule-toggle-on {
+  background: var(--ok-bg);
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.schedule-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.schedule-interval {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.schedule-interval:disabled { opacity: 0.5; cursor: not-allowed; }
+.schedule-interval:focus { outline: none; border-color: var(--accent); }
+

@@ -1,10 +1,11 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { Kpi } from "@/types";
 import type { AgentResult } from "@/lib/agents/types";
 import { StatusPill } from "@/components/ui/StatusDot";
 import { Confidence } from "@/components/ui/Confidence";
 import { AreaTag } from "@/components/ui/AreaTag";
+import { AgentResultDisplay } from "@/components/ui/AgentResultDisplay";
 
 interface RunState {
   kpiId: string;
@@ -12,6 +13,101 @@ interface RunState {
   text: string;
   result?: AgentResult;
   error?: string;
+}
+
+interface Schedule {
+  id: string;
+  kpiId: string;
+  enabled: boolean;
+  intervalHours: number;
+  nextRunAt: string | null;
+  kpi: { code: string; title: string; agent: string };
+}
+
+function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    fetch("/api/agents/schedule")
+      .then((r) => r.ok ? r.json() : [])
+      .then(setSchedules);
+  }, []);
+
+  async function updateSchedule(kpiId: string, patch: { enabled?: boolean; intervalHours?: number }) {
+    setSaving((s) => ({ ...s, [kpiId]: true }));
+    const current = schedules.find((s) => s.kpiId === kpiId);
+    const body = {
+      kpiId,
+      enabled: patch.enabled ?? current?.enabled ?? false,
+      intervalHours: patch.intervalHours ?? current?.intervalHours ?? 24,
+    };
+    const res = await fetch("/api/agents/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setSchedules((prev) => {
+        const idx = prev.findIndex((s) => s.kpiId === kpiId);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], ...updated };
+          return next;
+        }
+        return [...prev, { ...updated, kpi: kpis.find((k) => k.id === kpiId) ? { code: kpis.find((k) => k.id === kpiId)!.code, title: kpis.find((k) => k.id === kpiId)!.title, agent: kpis.find((k) => k.id === kpiId)!.agent } : { code: "", title: "", agent: "" } }];
+      });
+    }
+    setSaving((s) => ({ ...s, [kpiId]: false }));
+  }
+
+  const scheduleMap = Object.fromEntries(schedules.map((s) => [s.kpiId, s]));
+
+  return (
+    <div className="schedule-section">
+      <div className="schedule-title">Automatische Ausführung</div>
+      <div className="schedule-table">
+        {kpis.map((kpi) => {
+          const sched = scheduleMap[kpi.id];
+          const enabled = sched?.enabled ?? false;
+          const intervalHours = sched?.intervalHours ?? 24;
+          const isSaving = saving[kpi.id];
+          return (
+            <div key={kpi.id} className="schedule-row">
+              <div className="schedule-row-info">
+                <span className="schedule-code">{kpi.code}</span>
+                <span className="schedule-agent">{kpi.agent}</span>
+              </div>
+              <div className="schedule-controls">
+                <button
+                  className={`schedule-toggle${enabled ? " schedule-toggle-on" : ""}`}
+                  onClick={() => updateSchedule(kpi.id, { enabled: !enabled })}
+                  disabled={isSaving}
+                  title={enabled ? "Deaktivieren" : "Aktivieren"}
+                >
+                  {enabled ? "Ein" : "Aus"}
+                </button>
+                <select
+                  className="schedule-interval"
+                  value={intervalHours}
+                  disabled={!enabled || isSaving}
+                  onChange={(e) => updateSchedule(kpi.id, { intervalHours: Number(e.target.value) })}
+                >
+                  <option value={1}>Stündlich</option>
+                  <option value={6}>Alle 6 Std.</option>
+                  <option value={12}>Alle 12 Std.</option>
+                  <option value={24}>Täglich</option>
+                  <option value={168}>Wöchentlich</option>
+                  <option value={720}>Monatlich</option>
+                </select>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function AgentsView({
@@ -245,53 +341,9 @@ export function AgentsView({
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-function AgentResultDisplay({ result }: { result: AgentResult }) {
-  return (
-    <div className="agent-result">
-      <div className="ar-summary">{result.summary}</div>
-
-      <div className="ar-confidence">
-        <span className="ar-conf-label">Konfidenz</span>
-        <div className="ar-conf-bar">
-          <div className="ar-conf-fill" style={{ width: `${Math.round(result.confidence * 100)}%` }} />
-        </div>
-        <span className="ar-conf-val">{Math.round(result.confidence * 100)}%</span>
-      </div>
-
-      {result.anomalies.length > 0 && (
-        <div className="ar-anomalies">
-          <div className="ar-section-label">Auffälligkeiten</div>
-          {result.anomalies.map((a, i) => (
-            <div key={i} className={`ar-anomaly ar-anomaly-${a.severity}`}>
-              <div className="ar-anomaly-head">
-                <span className={`ar-sev-badge ar-sev-${a.severity}`}>{a.severity}</span>
-                <span className="ar-anomaly-title">{a.title}</span>
-              </div>
-              <div className="ar-anomaly-desc">{a.description}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {result.recommendations.length > 0 && (
-        <div className="ar-recommendations">
-          <div className="ar-section-label">Handlungsempfehlungen</div>
-          <ul className="ar-rec-list">
-            {result.recommendations.map((r, i) => (
-              <li key={i}>{r}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <details className="ar-details-wrap">
-        <summary className="ar-details-toggle">Vollständige Analyse</summary>
-        <div className="ar-details-body">{result.details}</div>
-      </details>
+      {/* Scheduling */}
+      <SchedulingSection kpis={kpis} />
     </div>
   );
 }

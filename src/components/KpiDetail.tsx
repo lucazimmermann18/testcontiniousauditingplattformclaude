@@ -1,26 +1,66 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Kpi } from "@/types";
+import type { AgentResult } from "@/lib/agents/types";
 import { AREAS, QUARTERS, CURRENT_QUARTER } from "@/data/audit-data";
 import { StatusPill } from "@/components/ui/StatusDot";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { RiskBars } from "@/components/ui/RiskBars";
 import { Confidence } from "@/components/ui/Confidence";
 import { AreaTag } from "@/components/ui/AreaTag";
+import { AgentResultDisplay } from "@/components/ui/AgentResultDisplay";
 
 type Tab = "agent" | "comments" | "tasks" | "approval" | "history";
 
-// ─── Agent Report (static summary) ──────────────────────────
+// ─── Agent Report (real data) ────────────────────────────────
 
-function AgentReport({ kpi }: { kpi: Kpi }) {
-  const summaryText =
-    kpi.status === "finding"
-      ? `${kpi.agent} hat ${kpi.value} Auffälligkeiten identifiziert (${kpi.delta}). Schwellenwerte auf Hochrisiko-Konten wurden überschritten. Empfehlung: Finding bestätigen und Maßnahmen einleiten.`
-      : kpi.status === "review"
-      ? `Aktueller Wert: ${kpi.value} (${kpi.delta}). Der Agent hat Auffälligkeiten erkannt, bittet aber bei ${Math.round(kpi.confidence * 100)}% Konfidenz um menschliche Bewertung.`
-      : kpi.status === "ok"
-      ? `Kennzahl im erwarteten Korridor. ${Math.round(kpi.confidence * 100)}% der Datensätze geprüft — keine wesentlichen Beanstandungen. Empfehlung: freigeben.`
-      : `Agent prüft aktuell. Datensammlung läuft.`;
+interface LastRun {
+  id: string;
+  status: string;
+  confidence: number;
+  summary: string | null;
+  rawOutput: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+}
+
+function AgentReport({ kpi, onKpiUpdated }: { kpi: Kpi; onKpiUpdated?: () => void }) {
+  const [lastRun, setLastRun] = useState<LastRun | null>(null);
+  const [loadingRun, setLoadingRun] = useState(true);
+  const [editingValues, setEditingValues] = useState(false);
+  const [value, setValue] = useState(kpi.value);
+  const [delta, setDelta] = useState(kpi.delta);
+  const [savingValues, setSavingValues] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/agents/${kpi.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { setLastRun(data); setLoadingRun(false); });
+  }, [kpi.id]);
+
+  const result = useMemo<AgentResult | null>(() => {
+    if (!lastRun?.rawOutput) return null;
+    try {
+      const m = lastRun.rawOutput.match(/\{[\s\S]*\}/);
+      return m ? (JSON.parse(m[0]) as AgentResult) : null;
+    } catch { return null; }
+  }, [lastRun]);
+
+  async function saveValues() {
+    setSavingValues(true);
+    await fetch(`/api/kpis/${kpi.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value, delta }),
+    });
+    setSavingValues(false);
+    setEditingValues(false);
+    onKpiUpdated?.();
+  }
+
+  const runTime = lastRun?.finishedAt
+    ? new Date(lastRun.finishedAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : kpi.lastRun;
 
   return (
     <div className="agent-report">
@@ -34,19 +74,64 @@ function AgentReport({ kpi }: { kpi: Kpi }) {
           </div>
           <div>
             <div className="ar-agent-name">{kpi.agent}</div>
-            <div className="ar-agent-sub">Letzter Lauf: {kpi.lastRun}</div>
+            <div className="ar-agent-sub">Letzter Lauf: {runTime}</div>
           </div>
         </div>
+        {lastRun && !loadingRun && (
+          <div className={`agent-result-badge agent-result-${lastRun.status}`}>
+            {lastRun.status === "ok" ? "✓ OK" : lastRun.status === "review" ? "⚠ Review" : lastRun.status === "finding" ? "⛔ Finding" : lastRun.status}
+          </div>
+        )}
       </div>
-      <div className={`ar-summary ar-${kpi.status}`}>
-        <div className="ar-summary-label">Agent-Einschätzung</div>
-        <p className="ar-summary-text">{summaryText}</p>
-      </div>
-      <div className="ar-kpi-details">
-        <div className="ar-detail-row"><span>Aktueller Wert</span><strong>{kpi.value}</strong></div>
-        <div className="ar-detail-row"><span>Veränderung</span><strong>{kpi.delta}</strong></div>
+
+      {/* Real agent result or fallback */}
+      {loadingRun ? (
+        <div className="tab-empty">Lade letzten Agent-Lauf…</div>
+      ) : !lastRun ? (
+        <div className="ar-no-run">
+          Noch kein Agent-Lauf für diesen KPI. Starte den Agenten im Tab <strong>KI-Agenten</strong> oder klicke auf <em>Erneut prüfen</em>.
+        </div>
+      ) : result ? (
+        <AgentResultDisplay result={result} />
+      ) : (
+        <div className={`ar-summary ar-${lastRun.status}`}>
+          <div className="ar-summary-label">Agent-Einschätzung</div>
+          <p className="ar-summary-text">{lastRun.summary ?? "Keine Zusammenfassung verfügbar."}</p>
+        </div>
+      )}
+
+      {/* KPI values — editable */}
+      <div className="ar-kpi-details" style={{ marginTop: "1.25rem" }}>
+        <div className="ar-detail-row">
+          <span>Aktueller Wert</span>
+          {editingValues
+            ? <input className="ar-value-input" value={value} onChange={(e) => setValue(e.target.value)} />
+            : <strong>{kpi.value}</strong>}
+        </div>
+        <div className="ar-detail-row">
+          <span>Veränderung</span>
+          {editingValues
+            ? <input className="ar-value-input" value={delta} onChange={(e) => setDelta(e.target.value)} />
+            : <strong>{kpi.delta}</strong>}
+        </div>
         <div className="ar-detail-row"><span>Konfidenz</span><Confidence value={kpi.confidence} /></div>
         <div className="ar-detail-row"><span>Risiko</span><RiskBars risk={kpi.risk} /></div>
+        <div className="ar-detail-row">
+          {editingValues ? (
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button className="btn btn-primary" style={{ fontSize: "0.8rem", padding: "4px 12px" }} onClick={saveValues} disabled={savingValues}>
+                {savingValues ? "Speichern…" : "Speichern"}
+              </button>
+              <button className="btn btn-ghost" style={{ fontSize: "0.8rem", padding: "4px 12px" }} onClick={() => { setValue(kpi.value); setDelta(kpi.delta); setEditingValues(false); }}>
+                Abbrechen
+              </button>
+            </div>
+          ) : (
+            <button className="btn-link" style={{ fontSize: "0.8rem" }} onClick={() => setEditingValues(true)}>
+              Werte bearbeiten ✎
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -83,10 +168,7 @@ function CommentsTab({ kpiId }: { kpiId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
-    if (res.ok) {
-      setText("");
-      await load();
-    }
+    if (res.ok) { setText(""); await load(); }
     setSubmitting(false);
   }
 
@@ -163,10 +245,7 @@ function TasksTab({ kpiId }: { kpiId: string }) {
   const [form, setForm] = useState({ title: "", assigneeId: "", priority: "medium", dueDate: "" });
 
   const load = useCallback(async () => {
-    const [tRes, uRes] = await Promise.all([
-      fetch(`/api/tasks?kpiId=${kpiId}`),
-      fetch("/api/users"),
-    ]);
+    const [tRes, uRes] = await Promise.all([fetch(`/api/tasks?kpiId=${kpiId}`), fetch("/api/users")]);
     if (tRes.ok) setTasks(await tRes.json());
     if (uRes.ok) setUsers(await uRes.json());
     setLoading(false);
@@ -208,11 +287,7 @@ function TasksTab({ kpiId }: { kpiId: string }) {
             <div className="task-head">
               <span className="task-priority-dot" style={{ background: PRIORITY_COLOR[t.priority] }} />
               <span className="task-title">{t.title}</span>
-              <select
-                className="task-status-select"
-                value={t.status}
-                onChange={(e) => updateStatus(t.id, e.target.value)}
-              >
+              <select className="task-status-select" value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}>
                 {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </div>
@@ -227,39 +302,19 @@ function TasksTab({ kpiId }: { kpiId: string }) {
 
       <form className="task-create-form" onSubmit={createTask}>
         <div className="task-form-title">Neue Aufgabe</div>
-        <input
-          className="task-input"
-          placeholder="Titel der Aufgabe…"
-          value={form.title}
-          onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-          required
-        />
+        <input className="task-input" placeholder="Titel der Aufgabe…" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required />
         <div className="task-form-row">
-          <select
-            className="task-input task-select"
-            value={form.assigneeId}
-            onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}
-            required
-          >
+          <select className="task-input task-select" value={form.assigneeId} onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))} required>
             <option value="">Zuweisen an…</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <select
-            className="task-input task-select"
-            value={form.priority}
-            onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-          >
+          <select className="task-input task-select" value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}>
             <option value="low">Niedrig</option>
             <option value="medium">Mittel</option>
             <option value="high">Hoch</option>
             <option value="critical">Kritisch</option>
           </select>
-          <input
-            className="task-input"
-            type="date"
-            value={form.dueDate}
-            onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-          />
+          <input className="task-input" type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
         </div>
         <button type="submit" className="btn btn-primary" disabled={creating}>
           {creating ? "Erstellen…" : "Aufgabe erstellen"}
@@ -318,10 +373,7 @@ function ApprovalTab({ kpiId, me }: { kpiId: string; me: { role: string } | null
     rejected: "Abgelehnt",
   };
   const STEP_COLOR: Record<string, string> = {
-    pending: "var(--ink-3)",
-    reviewer_approved: "var(--warn)",
-    head_approved: "var(--ok)",
-    rejected: "var(--alert)",
+    pending: "var(--ink-3)", reviewer_approved: "var(--warn)", head_approved: "var(--ok)", rejected: "var(--alert)",
   };
 
   if (loading) return <div className="tab-empty">Laden…</div>;
@@ -364,13 +416,7 @@ function ApprovalTab({ kpiId, me }: { kpiId: string; me: { role: string } | null
 
       {status !== "head_approved" && status !== "rejected" && (
         <div className="approval-actions">
-          <textarea
-            className="comment-input"
-            placeholder="Optionale Notiz…"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-          />
+          <textarea className="comment-input" placeholder="Optionale Notiz…" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
           <div className="approval-btns">
             {canReview && status === "pending" && (
               <button className="btn btn-secondary" onClick={() => act("reviewer_approve")} disabled={acting}>
@@ -383,9 +429,7 @@ function ApprovalTab({ kpiId, me }: { kpiId: string; me: { role: string } | null
               </button>
             )}
             {(canReview || canHeadApprove) && status !== "pending" && (
-              <button className="btn btn-ghost" onClick={() => act("reject")} disabled={acting}>
-                Ablehnen
-              </button>
+              <button className="btn btn-ghost" onClick={() => act("reject")} disabled={acting}>Ablehnen</button>
             )}
           </div>
         </div>
@@ -433,11 +477,13 @@ export function KpiDetail({
   kpi,
   onClose,
   onAction,
+  onKpiUpdated,
   me,
 }: {
   kpi: Kpi;
   onClose: () => void;
   onAction: (action: string, kpi: Kpi) => void;
+  onKpiUpdated?: () => void;
   me: { id: string; name: string; role: string; avatar: string | null } | null;
 }) {
   const area = AREAS.find((a) => a.id === kpi.area);
@@ -495,13 +541,14 @@ export function KpiDetail({
 
         <div className="kd-tabs">
           {TABS.map((t) => (
-            <button key={t.id} className={`kd-tab${tab === t.id ? " active" : ""}`}
-              onClick={() => setTab(t.id)}>{t.label}</button>
+            <button key={t.id} className={`kd-tab${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)}>
+              {t.label}
+            </button>
           ))}
         </div>
 
         <div className="kd-body">
-          {tab === "agent"    && <AgentReport kpi={kpi} />}
+          {tab === "agent"    && <AgentReport kpi={kpi} onKpiUpdated={onKpiUpdated} />}
           {tab === "comments" && <CommentsTab kpiId={kpi.id} />}
           {tab === "tasks"    && <TasksTab kpiId={kpi.id} />}
           {tab === "approval" && <ApprovalTab kpiId={kpi.id} me={me} />}
