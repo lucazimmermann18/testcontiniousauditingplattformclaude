@@ -10,6 +10,9 @@ export interface Area {
 export interface Kpi {
   id: string;
   area: string;
+  areaName?: string;
+  areaShort?: string;
+  areaColor?: string;
   code: string;
   title: string;
   desc: string;
@@ -19,7 +22,9 @@ export interface Kpi {
   value: string;
   delta: string;
   owner: string;
+  ownerId?: string;
   reviewer: string;
+  reviewerId?: string;
   lastRun: string;
   agent: string;
   trend: number[];

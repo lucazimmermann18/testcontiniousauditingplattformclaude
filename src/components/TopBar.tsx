@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { id: "heatmap"   as const, label: "Risiko-Heatmap" },
   { id: "timeline"  as const, label: "Quartals-Timeline" },
   { id: "findings"  as const, label: "Findings" },
+  { id: "tasks"     as const, label: "Aufgaben" },
   { id: "agents"    as const, label: "KI-Agenten" },
   { id: "history"   as const, label: "Audit-Verlauf" },
 ];
@@ -34,6 +35,7 @@ export function TopBar({
   onOpenKpi,
   darkMode,
   onToggleDarkMode,
+  onOpenSearch,
 }: {
   quarter: string;
   view: ViewId;
@@ -42,6 +44,7 @@ export function TopBar({
   onOpenKpi: (id: string) => void;
   darkMode?: boolean;
   onToggleDarkMode?: () => void;
+  onOpenSearch?: () => void;
 }) {
   const initials = me?.avatar ?? me?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() ?? "??";
   const displayName = me?.name ? me.name.split(" ").map((w, i) => i === 0 ? w[0] + "." : w).join(" ") : "…";
@@ -79,6 +82,20 @@ export function TopBar({
 
       {/* Right side */}
       <div className="topbar-right">
+        {/* Search trigger */}
+        <button
+          className="topbar-search-btn"
+          onClick={onOpenSearch}
+          title="Suchen (Cmd+K)"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span className="topbar-search-label">Suchen</span>
+          <kbd className="topbar-search-kbd">⌘K</kbd>
+        </button>
+
         <NotificationBell onOpenKpi={onOpenKpi} />
 
         {/* Dark mode toggle */}
@@ -100,6 +117,17 @@ export function TopBar({
           )}
         </button>
 
+        {isAdmin && (
+          <a href="/report" className="topbar-settings-btn" title="Audit-Bericht (PDF)" target="_blank">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              <polyline points="14,2 14,8 20,8" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <polyline points="10,9 9,9 8,9" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+          </a>
+        )}
         {isAdmin && (
           <a href="/settings" className="topbar-settings-btn" title="Einstellungen">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none">

@@ -8,11 +8,14 @@ import { TimelineView } from "./views/TimelineView";
 import { FindingsView } from "./views/FindingsView";
 import { AgentsView } from "./views/AgentsView";
 import { AuditHistoryView } from "./views/AuditHistoryView";
+import { TasksView } from "./views/TasksView";
+import { SearchModal } from "./SearchModal";
+import { OnboardingGate } from "./OnboardingModal";
 import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
 
-export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "agents" | "history";
+export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history";
 
 type ToastType = "ok" | "info" | "warn" | "alert";
 
@@ -36,6 +39,7 @@ export function AppShell() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const rerunAbortRefs = useRef<Record<string, AbortController>>({});
 
   const showToast = (msg: string, type: ToastType) => setToast({ msg, type });
@@ -47,6 +51,18 @@ export function AppShell() {
       setDarkMode(true);
       document.documentElement.setAttribute("data-theme", "dark");
     }
+  }, []);
+
+  // Cmd+K / Ctrl+K global search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   const toggleDarkMode = useCallback(() => {
@@ -187,6 +203,7 @@ export function AppShell() {
         onOpenKpi={openKpi}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
+        onOpenSearch={() => setSearchOpen(true)}
       />
 
       <div className="main">
@@ -211,6 +228,7 @@ export function AppShell() {
               onFindingsUpdated={fetchFindings}
             />
           )}
+          {view === "tasks"     && <TasksView />}
           {view === "agents"    && <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />}
           {view === "history"   && <AuditHistoryView kpis={kpis} onOpenKpi={openKpi} />}
         </main>
@@ -225,6 +243,17 @@ export function AppShell() {
           onAction={handleAction}
           me={me}
           onKpiUpdated={fetchKpis}
+        />
+      )}
+
+      <OnboardingGate hasApiKey={true} />
+
+      {searchOpen && (
+        <SearchModal
+          kpis={kpis}
+          findings={findings}
+          onOpenKpi={(id) => { openKpi(id); setSearchOpen(false); }}
+          onClose={() => setSearchOpen(false)}
         />
       )}
 
