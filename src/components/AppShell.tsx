@@ -7,11 +7,12 @@ import { HeatmapView } from "./views/HeatmapView";
 import { TimelineView } from "./views/TimelineView";
 import { FindingsView } from "./views/FindingsView";
 import { AgentsView } from "./views/AgentsView";
+import { AuditHistoryView } from "./views/AuditHistoryView";
 import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
 
-export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "agents";
+export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "agents" | "history";
 
 type ToastType = "ok" | "info" | "warn" | "alert";
 
@@ -34,9 +35,28 @@ export function AppShell() {
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
   const rerunAbortRefs = useRef<Record<string, AbortController>>({});
 
   const showToast = (msg: string, type: ToastType) => setToast({ msg, type });
+
+  // Dark mode init from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") {
+      setDarkMode(true);
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }, []);
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+      localStorage.setItem("theme", next ? "dark" : "light");
+      return next;
+    });
+  }, []);
 
   const fetchKpis = useCallback(async () => {
     const res = await fetch("/api/kpis");
@@ -113,9 +133,7 @@ export function AppShell() {
           }
         }
       } catch (err: unknown) {
-        if ((err as Error).name !== "AbortError") {
-          fetchKpis();
-        }
+        if ((err as Error).name !== "AbortError") fetchKpis();
       }
     } else if (action === "snooze") {
       await fetch(`/api/kpis/${kpi.id}`, {
@@ -161,7 +179,15 @@ export function AppShell() {
 
   return (
     <div id="app">
-      <TopBar quarter={CURRENT_QUARTER} view={view} setView={setView} me={me} onOpenKpi={openKpi} />
+      <TopBar
+        quarter={CURRENT_QUARTER}
+        view={view}
+        setView={setView}
+        me={me}
+        onOpenKpi={openKpi}
+        darkMode={darkMode}
+        onToggleDarkMode={toggleDarkMode}
+      />
 
       <div className="main">
         <main className="main-content">
@@ -175,9 +201,9 @@ export function AppShell() {
               setFilterStatus={setFilterStatus}
             />
           )}
-          {view === "heatmap"  && <HeatmapView  kpis={kpis} onOpenKpi={openKpi} />}
-          {view === "timeline" && <TimelineView  kpis={kpis} />}
-          {view === "findings" && (
+          {view === "heatmap"   && <HeatmapView  kpis={kpis} onOpenKpi={openKpi} />}
+          {view === "timeline"  && <TimelineView  kpis={kpis} />}
+          {view === "findings"  && (
             <FindingsView
               kpis={kpis}
               findings={findings}
@@ -185,9 +211,8 @@ export function AppShell() {
               onFindingsUpdated={fetchFindings}
             />
           )}
-          {view === "agents" && (
-            <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />
-          )}
+          {view === "agents"    && <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />}
+          {view === "history"   && <AuditHistoryView kpis={kpis} onOpenKpi={openKpi} />}
         </main>
 
         <ActivitySidebar activities={activities} onOpenKpi={openKpi} />

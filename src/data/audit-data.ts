@@ -59,10 +59,10 @@ export const KPIS: Kpi[] = [
 ];
 
 export const FINDINGS: Finding[] = [
-  { id: "f-01", kpi: "lgl-03", title: "Rückstellungen für Litigation unterschätzt", severity: "hoch", status: "offen", owner: "Dr. M. Weiss", due: "15.06.2026", opened: "02.05.2026", desc: "KI-Agent identifizierte € 0,8 Mio. Gap zwischen Rückstellungen und erwarteter Zahlungsverpflichtung in 3 Rechtsstreitigkeiten." },
-  { id: "f-02", kpi: "rew-01", title: "47 manuelle Buchungen außerhalb Geschäftszeiten", severity: "hoch", status: "in_bearbeitung", owner: "F. Krüger", due: "20.06.2026", opened: "01.05.2026", desc: "Signifikanter Anstieg manueller Buchungen auf Hochrisiko-Konten zwischen 22:00 und 05:00 Uhr." },
-  { id: "f-03", kpi: "its-01", title: "31 dormante Admin-Accounts aktiv", severity: "hoch", status: "offen", owner: "M. Bauer", due: "12.06.2026", opened: "03.05.2026", desc: "Privilegierte Accounts ehemaliger Mitarbeitender nicht deaktiviert, davon 4 mit erhöhten Rechten." },
-  { id: "f-04", kpi: "dsg-02", title: "23 Drift-Einträge im Verarbeitungsverzeichnis", severity: "mittel", status: "offen", owner: "T. Lindner", due: "30.06.2026", opened: "04.05.2026", desc: "System-Inventar und VVT weichen in 23 Punkten ab, davon 8 mit potenziell datenschutzrechtlicher Relevanz." },
+  { id: "f-01", assignee: null, kpi: "lgl-03", title: "Rückstellungen für Litigation unterschätzt", severity: "hoch", status: "offen", owner: "Dr. M. Weiss", due: "15.06.2026", opened: "02.05.2026", desc: "KI-Agent identifizierte € 0,8 Mio. Gap zwischen Rückstellungen und erwarteter Zahlungsverpflichtung in 3 Rechtsstreitigkeiten." },
+  { id: "f-02", assignee: null, kpi: "rew-01", title: "47 manuelle Buchungen außerhalb Geschäftszeiten", severity: "hoch", status: "in_bearbeitung", owner: "F. Krüger", due: "20.06.2026", opened: "01.05.2026", desc: "Signifikanter Anstieg manueller Buchungen auf Hochrisiko-Konten zwischen 22:00 und 05:00 Uhr." },
+  { id: "f-03", assignee: null, kpi: "its-01", title: "31 dormante Admin-Accounts aktiv", severity: "hoch", status: "offen", owner: "M. Bauer", due: "12.06.2026", opened: "03.05.2026", desc: "Privilegierte Accounts ehemaliger Mitarbeitender nicht deaktiviert, davon 4 mit erhöhten Rechten." },
+  { id: "f-04", assignee: null, kpi: "dsg-02", title: "23 Drift-Einträge im Verarbeitungsverzeichnis", severity: "mittel", status: "offen", owner: "T. Lindner", due: "30.06.2026", opened: "04.05.2026", desc: "System-Inventar und VVT weichen in 23 Punkten ab, davon 8 mit potenziell datenschutzrechtlicher Relevanz." },
 ];
 
 export const ACTIVITIES: Activity[] = [

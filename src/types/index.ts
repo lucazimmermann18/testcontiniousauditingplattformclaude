@@ -33,6 +33,8 @@ export interface Finding {
   severity: "hoch" | "mittel" | "niedrig";
   status: "offen" | "in_bearbeitung" | "geschlossen";
   owner: string;
+  ownerId?: string;
+  assignee: { id: string; name: string; avatar: string | null } | null;
   due: string;
   opened: string;
   desc: string;

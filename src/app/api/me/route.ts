@@ -9,7 +9,7 @@ export async function GET() {
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, role: true, avatar: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, avatar: true, createdAt: true, totpEnabled: true },
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
   return NextResponse.json(user);

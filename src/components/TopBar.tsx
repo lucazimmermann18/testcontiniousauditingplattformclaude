@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { id: "timeline"  as const, label: "Quartals-Timeline" },
   { id: "findings"  as const, label: "Findings" },
   { id: "agents"    as const, label: "KI-Agenten" },
+  { id: "history"   as const, label: "Audit-Verlauf" },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -31,12 +32,16 @@ export function TopBar({
   setView,
   me,
   onOpenKpi,
+  darkMode,
+  onToggleDarkMode,
 }: {
   quarter: string;
   view: ViewId;
   setView: (v: ViewId) => void;
   me: MeUser | null;
   onOpenKpi: (id: string) => void;
+  darkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }) {
   const initials = me?.avatar ?? me?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() ?? "??";
   const displayName = me?.name ? me.name.split(" ").map((w, i) => i === 0 ? w[0] + "." : w).join(" ") : "…";
@@ -75,6 +80,26 @@ export function TopBar({
       {/* Right side */}
       <div className="topbar-right">
         <NotificationBell onOpenKpi={onOpenKpi} />
+
+        {/* Dark mode toggle */}
+        <button
+          className="topbar-settings-btn"
+          onClick={onToggleDarkMode}
+          title={darkMode ? "Light Mode" : "Dark Mode"}
+          aria-label="Theme wechseln"
+        >
+          {darkMode ? (
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </button>
+
         {isAdmin && (
           <a href="/settings" className="topbar-settings-btn" title="Einstellungen">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none">

@@ -20,25 +20,28 @@ enum UserRole {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  role      UserRole @default(reviewer)
-  avatar    String?  // initials, e.g. "AV"
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  password     String
+  role         UserRole @default(reviewer)
+  avatar       String?
+  active       Boolean  @default(true)
+  totpSecret   String?
+  totpEnabled  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  ownedKpis      Kpi[]          @relation("KpiOwner")
-  reviewedKpis   Kpi[]          @relation("KpiReviewer")
-  comments       Comment[]
-  activities     Activity[]
-  sessions       Session[]
-  assignedTasks  Task[]         @relation("TaskAssignee")
-  createdTasks   Task[]         @relation("TaskCreator")
-  notifications  Notification[]
+  ownedKpis        Kpi[]          @relation("KpiOwner")
+  reviewedKpis     Kpi[]          @relation("KpiReviewer")
+  comments         Comment[]
+  activities       Activity[]
+  sessions         Session[]
+  assignedTasks    Task[]         @relation("TaskAssignee")
+  createdTasks     Task[]         @relation("TaskCreator")
+  notifications    Notification[]
+  assignedFindings Finding[]      @relation("FindingAssignee")
 }
 
 model Session {
@@ -125,13 +128,15 @@ model Finding {
   severity    FindingSeverity
   status      FindingStatus   @default(offen)
   ownerId     String
+  assigneeId  String?
   dueDate     DateTime
   openedAt    DateTime        @default(now())
   closedAt    DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  kpi  Kpi  @relation(fields: [kpiId], references: [id])
+  kpi      Kpi   @relation(fields: [kpiId], references: [id])
+  assignee User? @relation("FindingAssignee", fields: [assigneeId], references: [id])
 }
 
 model Comment {
@@ -343,4 +348,17 @@ model Notification {
   createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id])
+}
+
+// ─── Webhooks ─────────────────────────────────────────────────
+
+model WebhookConfig {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  secret    String?
+  events    String   @default("[\"finding_created\"]")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

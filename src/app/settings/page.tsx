@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { ApiKeySettings } from "./ApiKeySettings";
 import { DataSourceSettings } from "./DataSourceSettings";
+import { WebhookSettings } from "./WebhookSettings";
 
 export const metadata = { title: "Einstellungen · Continuum Audit" };
 
@@ -13,7 +14,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   if (role !== "admin" && role !== "head_of_audit") redirect("/");
 
   const { tab } = await searchParams;
-  const activeTab = tab === "datasources" ? "datasources" : "apikeys";
+  const activeTab = tab === "datasources" ? "datasources" : tab === "webhooks" ? "webhooks" : "apikeys";
 
   const kpis = await db.kpi.findMany({
     select: { id: true, code: true, title: true },
@@ -43,10 +44,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <a href="/settings?tab=datasources" className={`settings-tab${activeTab === "datasources" ? " settings-tab-active" : ""}`}>
             Datenquellen
           </a>
+          <a href="/settings?tab=webhooks" className={`settings-tab${activeTab === "webhooks" ? " settings-tab-active" : ""}`}>
+            Webhooks
+          </a>
         </div>
 
         {activeTab === "apikeys" && <ApiKeySettings />}
         {activeTab === "datasources" && <DataSourceSettings kpis={kpis} />}
+        {activeTab === "webhooks" && <WebhookSettings />}
       </div>
     </div>
   );
