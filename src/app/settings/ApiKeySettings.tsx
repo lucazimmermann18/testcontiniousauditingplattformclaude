@@ -58,9 +58,18 @@ export function ApiKeySettings() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   async function load() {
-    const res = await fetch("/api/settings/apikeys");
-    if (res.ok) setKeys(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch("/api/settings/apikeys");
+      if (res.ok) {
+        setKeys(await res.json());
+      } else {
+        console.error("GET /api/settings/apikeys returned", res.status);
+      }
+    } catch (e) {
+      console.error("load error", e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -80,14 +89,21 @@ export function ApiKeySettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       if (res.ok) {
-        setMsg({ text: "API-Key gespeichert.", ok: true });
+        setMsg({ text: "API-Key gespeichert und aktiv.", ok: true });
         setForm((f) => ({ ...f, apiKey: "" }));
         await load();
       } else {
-        const err = await res.json();
-        setMsg({ text: err.error ?? "Fehler beim Speichern.", ok: false });
+        const errText = typeof data?.error === "string"
+          ? data.error
+          : data?.error?.fieldErrors
+            ? Object.values(data.error.fieldErrors).flat().join(", ")
+            : `Fehler (HTTP ${res.status})`;
+        setMsg({ text: errText, ok: false });
       }
+    } catch (err) {
+      setMsg({ text: "Netzwerkfehler – bitte erneut versuchen.", ok: false });
     } finally {
       setSaving(false);
     }
