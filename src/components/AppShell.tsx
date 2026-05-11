@@ -18,13 +18,12 @@ import { SearchModal } from "./SearchModal";
 import { OnboardingGate } from "./OnboardingModal";
 import { TourGuide } from "./TourGuide";
 import { DashboardSkeleton } from "./ui/Skeleton";
+import { ToastProvider, useToast } from "./ui/ToastContext";
 import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
 
 export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant" | "quarters" | "planning" | "calendar" | "approvals";
-
-type ToastType = "ok" | "info" | "warn" | "alert";
 
 interface MeUser {
   id: string;
@@ -34,7 +33,7 @@ interface MeUser {
   avatar: string | null;
 }
 
-export function AppShell() {
+function AppShellInner() {
   const [view, setView] = useState<ViewId>("dashboard");
   const [openKpiId, setOpenKpiId] = useState<string | null>(null);
   const [filterArea, setFilterArea] = useState("all");
@@ -44,12 +43,10 @@ export function AppShell() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const rerunAbortRefs = useRef<Record<string, AbortController>>({});
-
-  const showToast = (msg: string, type: ToastType) => setToast({ msg, type });
+  const showToast = useToast();
 
   // Dark mode init from localStorage
   useEffect(() => {
@@ -115,8 +112,32 @@ export function AppShell() {
     return () => clearInterval(id);
   }, [fetchKpis, fetchFindings, fetchActivities]);
 
-  const openKpi = (id: string) => setOpenKpiId(id);
-  const closeKpi = () => setOpenKpiId(null);
+  const openKpi = (id: string) => {
+    setOpenKpiId(id);
+    const kpi = kpis.find((k) => k.id === id);
+    if (kpi) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("kpi", kpi.code);
+      window.history.pushState({}, "", url.toString());
+    }
+  };
+  const closeKpi = () => {
+    setOpenKpiId(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("kpi");
+    window.history.pushState({}, "", url.toString());
+  };
+
+  // On mount: open KPI from URL if ?kpi=CODE is present
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("kpi");
+    if (code && kpis.length > 0) {
+      const kpi = kpis.find((k) => k.code === code);
+      if (kpi) setOpenKpiId(kpi.id);
+    }
+  // Only run when kpis first load
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kpis.length > 0]);
 
   const handleAction = async (action: string, kpi: Kpi) => {
     if (action === "approve") {
@@ -192,11 +213,6 @@ export function AppShell() {
     }
   };
 
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   const openKpiObj = openKpiId ? kpis.find((k) => k.id === openKpiId) ?? null : null;
 
@@ -226,6 +242,16 @@ export function AppShell() {
     );
   }
 
+  function handleQuickAction(kpiId: string, action: "agent" | "finding" | "task") {
+    openKpi(kpiId);
+    // Small delay so detail panel opens first, then switch tab
+    setTimeout(() => {
+      if (action === "agent")   window.dispatchEvent(new CustomEvent("kpi-quick-tab", { detail: { kpiId, tab: "agent" } }));
+      if (action === "finding") window.dispatchEvent(new CustomEvent("kpi-quick-tab", { detail: { kpiId, tab: "create-finding" } }));
+      if (action === "task")    window.dispatchEvent(new CustomEvent("kpi-quick-tab", { detail: { kpiId, tab: "tasks" } }));
+    }, 80);
+  }
+
   return (
     <div id="app">
       <TopBar
@@ -249,6 +275,7 @@ export function AppShell() {
               setFilterArea={setFilterArea}
               filterStatus={filterStatus}
               setFilterStatus={setFilterStatus}
+              onQuickAction={handleQuickAction}
             />
           )}
           {view === "heatmap"   && <HeatmapView  kpis={kpis} onOpenKpi={openKpi} />}
@@ -296,12 +323,14 @@ export function AppShell() {
         />
       )}
 
-      {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          <span className="toast-dot" />
-          {toast.msg}
-        </div>
-      )}
     </div>
+  );
+}
+
+export function AppShell() {
+  return (
+    <ToastProvider>
+      <AppShellInner />
+    </ToastProvider>
   );
 }

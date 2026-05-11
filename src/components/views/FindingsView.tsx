@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import type { Kpi, Finding } from "@/types";
 import { AreaTag } from "@/components/ui/AreaTag";
 import { exportFindingsExcel } from "@/lib/export";
+import { useToast } from "@/components/ui/ToastContext";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const SEVERITY_COLOR = {
   hoch:    "var(--alert)",
@@ -477,6 +479,8 @@ export function FindingsView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [users, setUsers] = useState<User[]>([]);
   const [meRole, setMeRole] = useState("owner");
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const showToast = useToast();
 
   useEffect(() => {
     fetch("/api/users").then((r) => r.ok ? r.json() : []).then((data: { id: string; name: string; avatar: string | null }[]) => setUsers(data));
@@ -492,7 +496,10 @@ export function FindingsView({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    if (res.ok) onFindingsUpdated();
+    if (res.ok) {
+      showToast(status === "geschlossen" ? "Finding geschlossen" : "Status aktualisiert", "ok");
+      onFindingsUpdated();
+    }
   }
 
   async function handleAssigneeChange(id: string, assigneeId: string | null) {
@@ -506,6 +513,7 @@ export function FindingsView({
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    setTouched({ title: true, desc: true });
     if (!form.kpiId || !form.title || !form.desc) {
       setCreateError("Alle Pflichtfelder ausfüllen.");
       return;
@@ -520,7 +528,9 @@ export function FindingsView({
     setCreating(false);
     if (res.ok) {
       setShowCreateForm(false);
+      setTouched({});
       setForm({ kpiId: kpis[0]?.id ?? "", title: "", desc: "", severity: "mittel", dueDate: tomorrow(), assigneeId: "" });
+      showToast("Finding erfolgreich angelegt", "ok");
       onFindingsUpdated();
     } else {
       const err = await res.json().catch(() => ({}));
@@ -599,11 +609,27 @@ export function FindingsView({
           </div>
           <div className="fcf-field">
             <label className="fcf-label">Titel</label>
-            <input type="text" className="fcf-input" placeholder="Kurze Beschreibung des Findings" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+            <input
+              type="text"
+              className={`fcf-input${touched.title && !form.title ? " input-invalid" : ""}`}
+              placeholder="Kurze Beschreibung des Findings"
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              onBlur={() => setTouched((t) => ({ ...t, title: true }))}
+            />
+            {touched.title && !form.title && <div className="field-error">Titel ist erforderlich</div>}
           </div>
           <div className="fcf-field">
             <label className="fcf-label">Beschreibung</label>
-            <textarea className="fcf-textarea" rows={3} placeholder="Detaillierte Beschreibung, Ursache, Auswirkung…" value={form.desc} onChange={(e) => setForm((f) => ({ ...f, desc: e.target.value }))} />
+            <textarea
+              className={`fcf-textarea${touched.desc && !form.desc ? " input-invalid" : ""}`}
+              rows={3}
+              placeholder="Detaillierte Beschreibung, Ursache, Auswirkung…"
+              value={form.desc}
+              onChange={(e) => setForm((f) => ({ ...f, desc: e.target.value }))}
+              onBlur={() => setTouched((t) => ({ ...t, desc: true }))}
+            />
+            {touched.desc && !form.desc && <div className="field-error">Beschreibung ist erforderlich</div>}
           </div>
           {createError && <div className="fcf-error">{createError}</div>}
           <div className="fcf-actions">
@@ -657,9 +683,11 @@ export function FindingsView({
           );
         })}
         {openFindings.length === 0 && (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--ink-3)", fontSize: "0.875rem" }}>
-            Keine offenen Findings
-          </div>
+          <EmptyState
+            icon="🎉"
+            title="Keine offenen Findings"
+            sub="Alle Prüfungen sind sauber – kein Handlungsbedarf."
+          />
         )}
       </div>
 

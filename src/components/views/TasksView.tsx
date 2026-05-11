@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/ui/ToastContext";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface DbTask {
   id: string;
@@ -46,6 +48,8 @@ export function TasksView() {
   const [form, setForm] = useState({
     title: "", description: "", assigneeId: "", priority: "medium", dueDate: "",
   });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const showToast = useToast();
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -68,6 +72,7 @@ export function TasksView() {
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();
+    setTouched({ title: true, assigneeId: true });
     if (!form.title || !form.assigneeId) return;
     setCreating(true);
     await fetch("/api/tasks", {
@@ -76,7 +81,9 @@ export function TasksView() {
       body: JSON.stringify(form),
     });
     setForm({ title: "", description: "", assigneeId: "", priority: "medium", dueDate: "" });
+    setTouched({});
     setShowForm(false);
+    showToast("Aufgabe erstellt", "ok");
     await load();
     setCreating(false);
   }
@@ -87,12 +94,14 @@ export function TasksView() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    showToast(status === "done" ? "Aufgabe erledigt ✓" : "Status aktualisiert", "ok");
     await load();
   }
 
   async function deleteTask(taskId: string) {
     if (!confirm("Aufgabe wirklich löschen?")) return;
     await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+    showToast("Aufgabe gelöscht", "info");
     await load();
   }
 
@@ -132,13 +141,16 @@ export function TasksView() {
       {showForm && (
         <form className="task-create-panel" onSubmit={createTask}>
           <div className="tcp-title">Neue Aufgabe erstellen</div>
-          <input
-            className="task-input"
-            placeholder="Titel der Aufgabe *"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            required
-          />
+          <div>
+            <input
+              className={`task-input${touched.title && !form.title ? " input-invalid" : ""}`}
+              placeholder="Titel der Aufgabe *"
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              onBlur={() => setTouched((t) => ({ ...t, title: true }))}
+            />
+            {touched.title && !form.title && <div className="field-error">Titel ist erforderlich</div>}
+          </div>
           <textarea
             className="task-input"
             placeholder="Beschreibung (optional)"
@@ -147,15 +159,18 @@ export function TasksView() {
             rows={2}
           />
           <div className="task-form-row">
-            <select
-              className="task-input task-select"
-              value={form.assigneeId}
-              onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}
-              required
-            >
-              <option value="">Zuweisen an… *</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <div>
+              <select
+                className={`task-input task-select${touched.assigneeId && !form.assigneeId ? " input-invalid" : ""}`}
+                value={form.assigneeId}
+                onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}
+                onBlur={() => setTouched((t) => ({ ...t, assigneeId: true }))}
+              >
+                <option value="">Zuweisen an… *</option>
+                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+              {touched.assigneeId && !form.assigneeId && <div className="field-error">Bitte Assignee wählen</div>}
+            </div>
             <select
               className="task-input task-select"
               value={form.priority}
@@ -219,8 +234,15 @@ export function TasksView() {
 
       {loading ? (
         <div className="tab-empty">Aufgaben werden geladen…</div>
+      ) : tasks.length === 0 ? (
+        <EmptyState
+          icon="✅"
+          title="Noch keine Aufgaben"
+          sub="Erstelle die erste Aufgabe für dein Team."
+          action={{ label: "+ Neue Aufgabe", onClick: () => setShowForm(true) }}
+        />
       ) : filtered.length === 0 ? (
-        <div className="tab-empty">Keine Aufgaben gefunden.</div>
+        <EmptyState icon="🔍" title="Keine Aufgaben gefunden" sub="Filter anpassen oder zurücksetzen." />
       ) : (
         <div className="tasks-kanban">
           {(["open", "in_progress", "done"] as const).map((col) => {

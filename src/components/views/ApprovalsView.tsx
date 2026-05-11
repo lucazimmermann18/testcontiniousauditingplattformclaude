@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/ui/ToastContext";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type ApprovalStatus = "pending" | "reviewer_approved" | "head_approved" | "rejected";
 
@@ -125,6 +127,7 @@ export function ApprovalsView({ me }: { me: { id: string; role: string; name: st
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("pending");
   const [modal, setModal] = useState<{ approval: ApprovalRecord; action: "reviewer_approve" | "head_approve" | "reject" } | null>(null);
+  const showToast = useToast();
 
   const isHeadOrAdmin = me?.role === "head_of_audit" || me?.role === "admin";
   const isReviewer = me?.role === "reviewer" || isHeadOrAdmin;
@@ -169,7 +172,13 @@ export function ApprovalsView({ me }: { me: { id: string; role: string; name: st
           approval={modal.approval}
           action={modal.action}
           onClose={() => setModal(null)}
-          onDone={() => { setModal(null); load(); }}
+          onDone={() => {
+            const actionLabel = modal.action === "reviewer_approve" ? "Reviewer-Freigabe erteilt" :
+              modal.action === "head_approve" ? "Endgültig freigegeben ✓" : "Abgelehnt";
+            showToast(actionLabel, modal.action === "reject" ? "alert" : "ok");
+            setModal(null);
+            load();
+          }}
         />
       )}
 
@@ -216,8 +225,10 @@ export function ApprovalsView({ me }: { me: { id: string; role: string; name: st
 
       {loading ? (
         <div className="settings-empty">Lade…</div>
+      ) : approvals.length === 0 ? (
+        <EmptyState icon="🎉" title="Alle Freigaben erledigt" sub="Es gibt keine ausstehenden Genehmigungen." />
       ) : filtered.length === 0 ? (
-        <div className="settings-empty">Keine Einträge in dieser Kategorie.</div>
+        <EmptyState icon="🔍" title="Keine Einträge" sub="Wähle einen anderen Status-Filter." compact />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((a) => {

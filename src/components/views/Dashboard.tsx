@@ -166,7 +166,13 @@ function ChartsRow({ kpis }: { kpis: Kpi[] }) {
 
 // ── KPI Card ─────────────────────────────────────────────────
 
-function KpiCard({ kpi, onClick }: { kpi: Kpi; onClick: () => void }) {
+type QuickAction = "agent" | "finding" | "task";
+
+function KpiCard({ kpi, onClick, onQuickAction }: {
+  kpi: Kpi;
+  onClick: () => void;
+  onQuickAction?: (kpiId: string, action: QuickAction) => void;
+}) {
   return (
     <div
       className={`kpi-card kpi-card-${kpi.status}`}
@@ -197,16 +203,53 @@ function KpiCard({ kpi, onClick }: { kpi: Kpi; onClick: () => void }) {
         <Sparkline data={kpi.trend} status={kpi.status} width={80} height={24} />
       </div>
       {kpi.status === "running" && <div className="kpi-card-running-bar" />}
+
+      {/* Quick action overlay — visible on hover */}
+      {onQuickAction && (
+        <div className="kpi-card-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            className="kpi-qa-btn"
+            title="KI-Agent starten"
+            onClick={() => onQuickAction(kpi.id, "agent")}
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none">
+              <polygon points="5,3 19,12 5,21" fill="currentColor"/>
+            </svg>
+            Agent
+          </button>
+          <button
+            className="kpi-qa-btn kpi-qa-btn-warn"
+            title="Finding anlegen"
+            onClick={() => onQuickAction(kpi.id, "finding")}
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Finding
+          </button>
+          <button
+            className="kpi-qa-btn kpi-qa-btn-info"
+            title="Aufgabe erstellen"
+            onClick={() => onQuickAction(kpi.id, "task")}
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Aufgabe
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Area section ─────────────────────────────────────────────
 
-function AreaSection({ area, kpis, onOpenKpi }: {
+function AreaSection({ area, kpis, onOpenKpi, onQuickAction }: {
   area: typeof AREAS[0];
   kpis: Kpi[];
   onOpenKpi: (id: string) => void;
+  onQuickAction?: (kpiId: string, action: QuickAction) => void;
 }) {
   const sorted = [...kpis].sort((a, b) =>
     STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
@@ -231,7 +274,7 @@ function AreaSection({ area, kpis, onOpenKpi }: {
       </div>
       <div className="kpi-grid">
         {sorted.map((kpi) => (
-          <KpiCard key={kpi.id} kpi={kpi} onClick={() => onOpenKpi(kpi.id)} />
+          <KpiCard key={kpi.id} kpi={kpi} onClick={() => onOpenKpi(kpi.id)} onQuickAction={onQuickAction} />
         ))}
       </div>
     </div>
@@ -247,6 +290,7 @@ export function Dashboard({
   setFilterArea,
   filterStatus,
   setFilterStatus,
+  onQuickAction,
 }: {
   kpis: Kpi[];
   onOpenKpi: (id: string) => void;
@@ -254,6 +298,7 @@ export function Dashboard({
   setFilterArea: (v: string) => void;
   filterStatus: string;
   setFilterStatus: (v: string) => void;
+  onQuickAction?: (kpiId: string, action: QuickAction) => void;
 }) {
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
@@ -411,7 +456,7 @@ export function Dashboard({
       {/* KPI areas */}
       <div className="areas">
         {areaGroups.map(({ area, kpis: aKpis }) => (
-          <AreaSection key={area.id} area={area} kpis={aKpis} onOpenKpi={onOpenKpi} />
+          <AreaSection key={area.id} area={area} kpis={aKpis} onOpenKpi={onOpenKpi} onQuickAction={onQuickAction} />
         ))}
         {areaGroups.length === 0 && (
           <div className="empty-state">

@@ -9,6 +9,7 @@ import { RiskBars } from "@/components/ui/RiskBars";
 import { Confidence } from "@/components/ui/Confidence";
 import { AreaTag } from "@/components/ui/AreaTag";
 import { AgentResultDisplay } from "@/components/ui/AgentResultDisplay";
+import { TabSkeleton, EmptyState } from "@/components/ui/EmptyState";
 
 type Tab = "agent" | "comments" | "tasks" | "approval" | "history";
 
@@ -230,14 +231,14 @@ function CommentsTab({ kpiId }: { kpiId: string }) {
     setSubmitting(false);
   }
 
-  if (loading) return <div className="tab-empty">Laden…</div>;
+  if (loading) return <TabSkeleton rows={4} />;
 
   const roleLabel: Record<string, string> = { head_of_audit: "Head of Audit", owner: "Owner", reviewer: "Reviewer", admin: "Admin" };
 
   return (
     <div className="comments">
       <div className="comments-list">
-        {comments.length === 0 && <div className="tab-empty">Noch keine Kommentare. Starte die Diskussion.</div>}
+        {comments.length === 0 && <EmptyState compact icon="💬" title="Noch keine Kommentare" sub="Starte die Diskussion unten." />}
         {comments.map((c) => {
           const initials = c.author.avatar ?? c.author.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
           const time = new Date(c.createdAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -354,12 +355,12 @@ function TasksTab({ kpiId }: { kpiId: string }) {
     await load();
   }
 
-  if (loading) return <div className="tab-empty">Laden…</div>;
+  if (loading) return <TabSkeleton rows={3} />;
 
   return (
     <div className="tasks-tab">
       <div className="tasks-list">
-        {tasks.length === 0 && <div className="tab-empty">Keine Aufgaben für diesen KPI.</div>}
+        {tasks.length === 0 && <EmptyState compact icon="✅" title="Keine Aufgaben" sub="Noch keine Aufgaben für diesen KPI." />}
         {tasks.map((t) => (
           <div key={t.id} className={`task-item task-${t.status}`}>
             <div className="task-head">
@@ -454,7 +455,7 @@ function ApprovalTab({ kpiId, me }: { kpiId: string; me: { role: string } | null
     pending: "var(--ink-3)", reviewer_approved: "var(--warn)", head_approved: "var(--ok)", rejected: "var(--alert)",
   };
 
-  if (loading) return <div className="tab-empty">Laden…</div>;
+  if (loading) return <TabSkeleton rows={3} />;
 
   const status = approval?.status ?? "pending";
 
@@ -613,6 +614,15 @@ export function KpiDetail({
 }) {
   const area = AREAS.find((a) => a.id === kpi.area);
   const [tab, setTab] = useState<Tab>("agent");
+
+  // Listen for quick-action tab switch (dispatched by AppShell handleQuickAction)
+  useEffect(() => {
+    function handler(e: CustomEvent<{ kpiId: string; tab: string }>) {
+      if (e.detail.kpiId === kpi.id) setTab(e.detail.tab as Tab);
+    }
+    window.addEventListener("kpi-quick-tab", handler as EventListener);
+    return () => window.removeEventListener("kpi-quick-tab", handler as EventListener);
+  }, [kpi.id]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
