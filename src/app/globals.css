@@ -149,6 +149,8 @@ input, textarea, select { font-family: inherit; }
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 50;
   min-width: 0;
+  /* allow nav dropdowns to overflow below the sticky bar */
+  overflow: visible;
 }
 
 .brand { display: flex; align-items: center; gap: 12px; }
@@ -184,7 +186,8 @@ input, textarea, select { font-family: inherit; }
   justify-self: center;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  /* overflow must be visible so absolutely-positioned dropdowns can escape */
+  overflow: visible;
 }
 .topnav-btn {
   background: none; border: none;
@@ -725,21 +728,32 @@ input, textarea, select { font-family: inherit; }
 
 /* ─── Responsive ─── */
 
+/* ≤1440px — start compressing nav buttons */
+@media (max-width: 1440px) {
+  .topnav-btn { padding: 6px 13px; }
+}
+
 /* ≤1360px — hide less-critical admin icon buttons, compact quarter pill */
 @media (max-width: 1360px) {
-  .topbar { grid-template-columns: 240px minmax(0, 1fr) auto; gap: 16px; }
+  .topbar { grid-template-columns: 220px minmax(0, 1fr) auto; gap: 14px; padding: 10px 18px; }
   a[href="/report"].topbar-settings-btn,
   a[href="/org"].topbar-settings-btn { display: none; }
   .qp-label { display: none; }
   .topbar-search-label, .topbar-search-kbd { display: none; }
   .topbar-search-btn { padding: 6px 10px; }
+  .topnav-btn { padding: 6px 11px; font-size: 11.5px; }
+  .topbar-right { gap: 10px; }
 }
 
 /* ≤1200px — further reduce brand, hide team button */
 @media (max-width: 1200px) {
-  .topbar { grid-template-columns: 200px minmax(0, 1fr) auto; gap: 12px; }
+  .topbar { grid-template-columns: 180px minmax(0, 1fr) auto; gap: 10px; padding: 10px 14px; }
   .brand-sub { display: none; }
   a[href="/team"].topbar-settings-btn { display: none; }
+  .topnav-btn { padding: 5px 9px; font-size: 11px; }
+  .topnav { gap: 1px; padding: 3px; }
+  .quarter-pill { padding: 6px 10px; }
+  .qp-value { font-size: 11px; }
 }
 
 /* ≤1100px — hide activity sidebar, stack main content */
@@ -748,8 +762,10 @@ input, textarea, select { font-family: inherit; }
   .activity-side { display: none; }
   .kd-numbers { grid-template-columns: repeat(2, 1fr); }
   a[href="/settings"].topbar-settings-btn { display: none; }
-  .topbar { grid-template-columns: auto minmax(0, 1fr) auto; padding: 10px 16px; }
-  .topbar-right { gap: 8px; }
+  .topbar { grid-template-columns: auto minmax(0, 1fr) auto; padding: 8px 14px; gap: 8px; }
+  .topbar-right { gap: 6px; }
+  .topnav-btn { padding: 5px 8px; font-size: 10.5px; }
+  .brand-name { font-size: 13px; }
 }
 
 /* ≤768px — hide desktop nav, show hamburger */
