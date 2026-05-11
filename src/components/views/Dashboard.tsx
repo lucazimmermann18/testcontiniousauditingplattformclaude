@@ -256,14 +256,24 @@ export function Dashboard({
   setFilterStatus: (v: string) => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterRisk, setFilterRisk] = useState("all");
+
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     return () => clearTimeout(t);
   }, []);
 
+  const q = search.trim().toLowerCase();
+
   const filtered = kpis.filter((k) => {
     if (filterArea !== "all" && k.area !== filterArea) return false;
     if (filterStatus !== "all" && k.status !== filterStatus) return false;
+    if (filterRisk !== "all" && String(k.risk) !== filterRisk) return false;
+    if (q) {
+      const haystack = `${k.code} ${k.title} ${k.areaName ?? ""} ${k.agent}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     return true;
   });
 
@@ -271,6 +281,15 @@ export function Dashboard({
     area,
     kpis: filtered.filter((k) => k.area === area.id),
   })).filter((g) => g.kpis.length > 0);
+
+  const isFiltered = q || filterArea !== "all" || filterStatus !== "all" || filterRisk !== "all";
+
+  function clearAll() {
+    setSearch("");
+    setFilterArea("all");
+    setFilterStatus("all");
+    setFilterRisk("all");
+  }
 
   const STATUS_FILTER_ITEMS = [
     { id: "all", label: "Alle" },
@@ -281,6 +300,15 @@ export function Dashboard({
     { id: "ok", label: "Konform" },
   ];
 
+  const RISK_ITEMS = [
+    { id: "all", label: "Alle" },
+    { id: "5", label: "R5 Kritisch", color: "#dc2626" },
+    { id: "4", label: "R4 Hoch",     color: "#ef4444" },
+    { id: "3", label: "R3 Mittel",   color: "#f59e0b" },
+    { id: "2", label: "R2 Niedrig",  color: "#3b82f6" },
+    { id: "1", label: "R1 Minimal",  color: "#94a3b8" },
+  ];
+
   return (
     <div className={`dashboard-wrap${mounted ? " dashboard-mounted" : ""}`}>
       <HeroStats kpis={kpis} />
@@ -288,25 +316,45 @@ export function Dashboard({
       {/* Insights charts */}
       <ChartsRow kpis={kpis} />
 
-      {/* Filter bar */}
+      {/* Search + Filter bar */}
       <div className="filterbar">
-        <div className="filterbar-r" style={{ marginLeft: "auto" }}>
-          <button className="btn-export" onClick={() => exportKpisExcel(kpis)} title="Als Excel exportieren">
+        {/* Search */}
+        <div className="filterbar-search">
+          <svg className="filterbar-search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <input
+            className="filterbar-search-input"
+            type="text"
+            placeholder="KPI-Code, Titel oder Bereich suchen…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button className="filterbar-search-clear" onClick={() => setSearch("")}>×</button>
+          )}
+        </div>
+
+        {/* Export + clear */}
+        <div className="filterbar-r" style={{ marginLeft: "auto", gap: 8, display: "flex", alignItems: "center" }}>
+          {isFiltered && (
+            <button className="chip chip-clear" onClick={clearAll} title="Alle Filter zurücksetzen">
+              Filter zurücksetzen
+            </button>
+          )}
+          <button className="btn-export" onClick={() => exportKpisExcel(filtered)} title="Gefilterte KPIs als Excel exportieren">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
               <path d="M12 3v12M8 11l4 4 4-4M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             Excel
           </button>
         </div>
+
         <div className="filterbar-l">
           <span className="filter-label">Bereich</span>
           <div className="filter-chips">
-            <button
-              className={`chip${filterArea === "all" ? " chip-active" : ""}`}
-              onClick={() => setFilterArea("all")}
-            >
-              Alle
-            </button>
+            <button className={`chip${filterArea === "all" ? " chip-active" : ""}`} onClick={() => setFilterArea("all")}>Alle</button>
             {AREAS.map((a) => (
               <button
                 key={a.id}
@@ -319,6 +367,7 @@ export function Dashboard({
             ))}
           </div>
         </div>
+
         <div className="filterbar-r">
           <span className="filter-label">Status</span>
           <div className="filter-chips">
@@ -333,7 +382,31 @@ export function Dashboard({
             ))}
           </div>
         </div>
+
+        <div className="filterbar-r">
+          <span className="filter-label">Risiko</span>
+          <div className="filter-chips">
+            {RISK_ITEMS.map((r) => (
+              <button
+                key={r.id}
+                className={`chip${filterRisk === r.id ? " chip-active" : ""}`}
+                style={filterRisk === r.id && r.color ? { "--chip-color": r.color } as React.CSSProperties : undefined}
+                onClick={() => setFilterRisk(r.id)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {/* Result count when filtering */}
+      {isFiltered && (
+        <div className="filterbar-result-count">
+          {filtered.length} KPI{filtered.length !== 1 ? "s" : ""} gefunden
+          {q && <span className="filterbar-result-query"> für „{q}"</span>}
+        </div>
+      )}
 
       {/* KPI areas */}
       <div className="areas">
@@ -344,7 +417,11 @@ export function Dashboard({
           <div className="empty-state">
             <div className="empty-state-icon">🔍</div>
             <div className="empty-state-title">Keine Kennzahlen gefunden</div>
-            <div className="empty-state-sub">Ändere die Filterauswahl, um Ergebnisse zu sehen.</div>
+            <div className="empty-state-sub">
+              {isFiltered ? (
+                <><span>Filter anpassen oder </span><button className="link-btn" onClick={clearAll}>alle zurücksetzen</button></>
+              ) : "Keine KPIs vorhanden."}
+            </div>
           </div>
         )}
       </div>

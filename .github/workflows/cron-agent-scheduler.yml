@@ -1,0 +1,31 @@
+name: Agent Scheduler (Cron)
+
+on:
+  schedule:
+    # Runs every hour at :05 — adjust to your needs
+    - cron: "5 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no agents actually started)"
+        type: boolean
+        default: false
+
+jobs:
+  run-scheduled-agents:
+    name: Trigger scheduled KPI agents
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call cron endpoint
+        run: |
+          DRY=${{ github.event.inputs.dry_run == 'true' && '?dry=1' || '' }}
+          RESPONSE=$(curl -sf -X POST \
+            "${{ secrets.APP_URL }}/api/cron/run-scheduled-agents${DRY}" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "$RESPONSE"
+          echo "$RESPONSE" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print(f\"Ran: {d.get('ran', 0)}, Skipped: {d.get('skipped', 0)}, Total due: {d.get('totalDueKpis', 0)}, Duration: {d.get('durationMs', 0)}ms\")
+          "

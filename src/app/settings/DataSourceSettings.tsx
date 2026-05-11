@@ -55,6 +55,9 @@ export function DataSourceSettings({ kpis }: { kpis: Kpi[] }) {
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [uploadKpi, setUploadKpi] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [manualJson, setManualJson] = useState<Record<string, string>>({});
+  const [manualSaving, setManualSaving] = useState<string | null>(null);
+  const [jsonError, setJsonError] = useState<Record<string, string | null>>({});
 
   const load = useCallback(async () => {
     const res = await fetch("/api/datasources");
@@ -163,6 +166,36 @@ export function DataSourceSettings({ kpis }: { kpis: Kpi[] }) {
         : { ok: false, text: `✗ ${data.error ?? "Fehler"}` },
     }));
     setTesting(null);
+    await load();
+  }
+
+  function validateJson(kpiId: string, value: string) {
+    setManualJson((prev) => ({ ...prev, [kpiId]: value }));
+    try {
+      JSON.parse(value);
+      setJsonError((prev) => ({ ...prev, [kpiId]: null }));
+    } catch (e: any) {
+      setJsonError((prev) => ({ ...prev, [kpiId]: e.message }));
+    }
+  }
+
+  async function saveManualData(sourceId: string, kpiId: string) {
+    const raw = manualJson[kpiId];
+    if (!raw?.trim()) return;
+    setManualSaving(kpiId);
+    const res = await fetch(`/api/datasources/${sourceId}/manual`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: raw }),
+    });
+    const data = await res.json();
+    setTestResult((prev) => ({
+      ...prev,
+      [kpiId]: res.ok
+        ? { ok: true, text: `✓ Daten gespeichert (${new Date(data.updatedAt).toLocaleString("de-DE")})` }
+        : { ok: false, text: `✗ ${data.error ?? "Fehler"}` },
+    }));
+    setManualSaving(null);
     await load();
   }
 
@@ -322,7 +355,7 @@ export function DataSourceSettings({ kpis }: { kpis: Kpi[] }) {
                   </div>
                 )}
 
-                {/* Test / Upload section */}
+                {/* Test / Upload / Manual section */}
                 {src && (
                   <div className="ds-test-section">
                     {src.type === "REST" && src.url && (
@@ -347,6 +380,55 @@ export function DataSourceSettings({ kpis }: { kpis: Kpi[] }) {
                           }}
                         />
                       </label>
+                    )}
+                    {src.type === "MANUAL" && (
+                      <div className="ds-manual-section">
+                        <label className="settings-label" style={{ marginBottom: 6, display: "block" }}>
+                          Manuelle Dateneingabe (JSON)
+                          <span className="settings-hint" style={{ marginLeft: 8 }}>
+                            Wird vom KI-Agenten als Echtdaten verwendet
+                          </span>
+                        </label>
+                        <textarea
+                          className={`settings-input ds-manual-textarea${jsonError[kpi.id] ? " ds-manual-error" : ""}`}
+                          rows={6}
+                          spellCheck={false}
+                          placeholder={JSON.stringify({
+                            "beschreibung": "Manuelle Prüfdaten",
+                            "wert": 142500,
+                            "einheit": "EUR",
+                            "periode": "Q2-2026",
+                            "details": []
+                          }, null, 2)}
+                          value={manualJson[kpi.id] ?? ""}
+                          onChange={(e) => validateJson(kpi.id, e.target.value)}
+                        />
+                        {jsonError[kpi.id] && (
+                          <div className="ds-json-error">JSON-Fehler: {jsonError[kpi.id]}</div>
+                        )}
+                        <button
+                          className="btn-primary"
+                          style={{ marginTop: 8 }}
+                          disabled={!!jsonError[kpi.id] || !manualJson[kpi.id]?.trim() || manualSaving === kpi.id}
+                          onClick={() => saveManualData(src.id, kpi.id)}
+                        >
+                          {manualSaving === kpi.id ? "Speichern…" : "Daten speichern"}
+                        </button>
+                        {src.lastData && (
+                          <div style={{ marginTop: 8 }}>
+                            <details>
+                              <summary className="settings-hint" style={{ cursor: "pointer" }}>
+                                Aktuell gespeicherte Daten anzeigen
+                                {src.lastFetchedAt && ` (Stand: ${new Date(src.lastFetchedAt).toLocaleString("de-DE")})`}
+                              </summary>
+                              <pre className="ds-manual-preview">
+                                {/* lastData is boolean in the list view, need to fetch full source for raw data */}
+                                Daten vorhanden — gespeichert am {src.lastFetchedAt ? new Date(src.lastFetchedAt).toLocaleString("de-DE") : "unbekannt"}
+                              </pre>
+                            </details>
+                          </div>
+                        )}
+                      </div>
                     )}
                     {tr && (
                       <span className={`ds-test-result${tr.ok ? " ds-test-ok" : " ds-test-err"}`}>

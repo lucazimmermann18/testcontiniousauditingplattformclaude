@@ -4869,3 +4869,81 @@ details[open] .finding-closed-summary::before { content: "▼"; }
 /* Dark mode */
 [data-theme="dark"] .org-sso-status-badge.active { background: rgba(34,197,94,0.15); }
 [data-theme="dark"] .org-remove-btn:hover { background: rgba(239,68,68,0.15); }
+
+/* ── Schedule section enhancements ─────────────────────────── */
+.schedule-title-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; margin-bottom: 8px;
+}
+.schedule-subtitle { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.schedule-cron-result {
+  font-size: 12px; padding: 8px 12px; border-radius: var(--r-md);
+  margin-bottom: 10px;
+}
+.schedule-cron-ok  { background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+.schedule-cron-err { background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+.schedule-row-due { border-left: 3px solid var(--brand) !important; }
+.schedule-due-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 6px;
+  background: rgba(59,130,246,0.12); color: var(--brand);
+  border-radius: 99px; border: 1px solid rgba(59,130,246,0.25);
+}
+.schedule-last-run { font-size: 11px; color: var(--ink-4); }
+.schedule-next-run { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+
+/* ── Dashboard search ───────────────────────────────────────── */
+.filterbar-search {
+  position: relative; display: flex; align-items: center;
+  width: 100%; max-width: 360px;
+}
+.filterbar-search-icon {
+  position: absolute; left: 10px; color: var(--ink-4); pointer-events: none;
+}
+.filterbar-search-input {
+  width: 100%; padding: 7px 32px 7px 32px;
+  background: var(--surface-2); border: 1.5px solid var(--line);
+  border-radius: var(--r-md); font-size: 13px; color: var(--ink);
+  transition: border-color 0.15s;
+}
+.filterbar-search-input:focus { outline: none; border-color: var(--brand); }
+.filterbar-search-clear {
+  position: absolute; right: 8px; background: none; border: none;
+  color: var(--ink-3); cursor: pointer; font-size: 16px; line-height: 1;
+  padding: 0 2px;
+}
+.filterbar-search-clear:hover { color: var(--ink); }
+.filterbar-result-count {
+  font-size: 12px; color: var(--ink-3); padding: 4px 0 8px;
+}
+.filterbar-result-query { font-weight: 600; color: var(--ink-2); }
+.chip-clear {
+  font-size: 12px !important; padding: 4px 10px !important;
+  background: rgba(239,68,68,0.06) !important;
+  color: #ef4444 !important; border-color: rgba(239,68,68,0.2) !important;
+}
+.chip-clear:hover { background: rgba(239,68,68,0.12) !important; }
+.link-btn {
+  background: none; border: none; color: var(--brand);
+  cursor: pointer; font-size: inherit; padding: 0; text-decoration: underline;
+}
+.link-btn:hover { color: var(--brand-hover); }
+
+/* ── DataSource manual entry ────────────────────────────────── */
+.ds-manual-section { margin-top: 8px; }
+.ds-manual-textarea {
+  font-family: var(--font-mono, monospace) !important;
+  font-size: 12px !important; line-height: 1.5 !important;
+  width: 100%; resize: vertical;
+}
+.ds-manual-error { border-color: #ef4444 !important; }
+.ds-json-error { font-size: 11px; color: #ef4444; margin-top: 4px; }
+.ds-manual-preview { font-family: monospace; font-size: 11px; color: var(--ink-3); padding: 8px; background: var(--surface-2); border-radius: var(--r-md); margin-top: 4px; }
+
+/* ── Audit plan new-KPI button ──────────────────────────────── */
+.btn.btn-ghost {
+  background: var(--surface-2); border: 1.5px solid var(--line);
+  color: var(--ink-2); border-radius: var(--r-md);
+  padding: 7px 14px; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.btn.btn-ghost:hover { border-color: var(--brand); color: var(--brand); }

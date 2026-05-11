@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import type { Kpi } from "@/types";
-import { CURRENT_QUARTER, QUARTERS } from "@/data/audit-data";
+import { CURRENT_QUARTER, QUARTERS, AREAS } from "@/data/audit-data";
 
 interface PlanEntry {
   kpiId: string;
@@ -35,15 +35,169 @@ function nextWorkday(daysFromNow: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; name: string } | null }) {
+interface NewKpiForm {
+  code: string;
+  title: string;
+  desc: string;
+  areaId: string;
+  risk: number;
+  agent: string;
+  ownerId: string;
+  reviewerId: string;
+}
+
+interface SimpleUser { id: string; name: string; role: string; }
+
+function NewKpiModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (kpi: Kpi) => void;
+}) {
+  const [form, setForm] = useState<NewKpiForm>({
+    code: "", title: "", desc: "", areaId: AREAS[0]?.id ?? "",
+    risk: 3, agent: "Audit-Assistent", ownerId: "", reviewerId: "",
+  });
+  const [users, setUsers] = useState<SimpleUser[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/users").then((r) => r.ok ? r.json() : []).then(setUsers).catch(() => {});
+  }, []);
+
+  const set = (patch: Partial<NewKpiForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  async function submit() {
+    if (!form.code.trim() || !form.title.trim() || !form.ownerId || !form.reviewerId) {
+      setErr("Code, Titel, Verantwortlicher und Reviewer sind Pflichtfelder.");
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    const res = await fetch("/api/kpis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: form.code.trim().toUpperCase(),
+        areaId: form.areaId,
+        title: form.title.trim(),
+        desc: form.desc.trim(),
+        risk: form.risk,
+        agent: form.agent.trim() || "Audit-Assistent",
+        ownerId: form.ownerId,
+        reviewerId: form.reviewerId,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setErr(data.error ?? "Fehler beim Anlegen."); setSaving(false); return; }
+    onCreated(data);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3 className="modal-title">Neuen KPI anlegen</h3>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+            <div>
+              <label className="settings-label">KPI-Code *</label>
+              <input
+                className="settings-input"
+                placeholder="z.B. LGL-05"
+                value={form.code}
+                onChange={(e) => set({ code: e.target.value.toUpperCase() })}
+                style={{ fontFamily: "monospace", textTransform: "uppercase" }}
+              />
+            </div>
+            <div>
+              <label className="settings-label">Titel *</label>
+              <input className="settings-input" placeholder="KPI-Bezeichnung" value={form.title} onChange={(e) => set({ title: e.target.value })} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className="settings-label">Prüfbereich *</label>
+              <select className="settings-input settings-select" value={form.areaId} onChange={(e) => set({ areaId: e.target.value })}>
+                {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="settings-label">Risiko (1–5) *</label>
+              <select className="settings-input settings-select" value={form.risk} onChange={(e) => set({ risk: Number(e.target.value) })}>
+                <option value={5}>5 — Kritisch</option>
+                <option value={4}>4 — Hoch</option>
+                <option value={3}>3 — Mittel</option>
+                <option value={2}>2 — Niedrig</option>
+                <option value={1}>1 — Minimal</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className="settings-label">Verantwortlicher (Owner) *</label>
+              <select className="settings-input settings-select" value={form.ownerId} onChange={(e) => set({ ownerId: e.target.value })}>
+                <option value="">— auswählen —</option>
+                {users.filter((u) => u.role === "owner" || u.role === "admin").map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="settings-label">Reviewer *</label>
+              <select className="settings-input settings-select" value={form.reviewerId} onChange={(e) => set({ reviewerId: e.target.value })}>
+                <option value="">— auswählen —</option>
+                {users.filter((u) => u.role === "reviewer" || u.role === "head_of_audit" || u.role === "admin").map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="settings-label">KI-Agent</label>
+            <input className="settings-input" value={form.agent} onChange={(e) => set({ agent: e.target.value })} placeholder="z.B. Compliance-Agent" />
+          </div>
+
+          <div>
+            <label className="settings-label">Beschreibung</label>
+            <textarea className="settings-input" rows={2} value={form.desc} onChange={(e) => set({ desc: e.target.value })} placeholder="Kurzbeschreibung des KPIs (optional)" style={{ resize: "vertical" }} />
+          </div>
+
+          {err && <div className="settings-msg settings-msg-err">{err}</div>}
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+            <button className="btn" onClick={onClose}>Abbrechen</button>
+            <button className="btn-primary" onClick={submit} disabled={saving}>
+              {saving ? "Anlegen…" : "KPI anlegen & zum Plan hinzufügen"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AuditPlanView({ kpis: initialKpis, me, onKpisUpdated }: { kpis: Kpi[]; me: { role: string; name: string } | null; onKpisUpdated?: () => void }) {
+  const [kpis, setKpis] = useState<Kpi[]>(initialKpis);
   const [plan, setPlan] = useState<PlanEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showNewKpiModal, setShowNewKpiModal] = useState(false);
   const [quarter, setQuarter] = useState(CURRENT_QUARTER);
   const isAdmin = me?.role === "admin" || me?.role === "head_of_audit";
+
+  // Sync when parent re-fetches KPIs
+  useEffect(() => { setKpis(initialKpis); }, [initialKpis]);
 
   const loadPlan = useCallback(async (q: string) => {
     setLoading(true);
@@ -132,8 +286,29 @@ export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; n
   const critical = plan.filter((e) => e.priority === "critical").length;
   const overdue = plan.filter((e) => !e.done && e.plannedDate < new Date().toISOString().slice(0, 10)).length;
 
+  function handleKpiCreated(newKpi: Kpi) {
+    // Add to local kpis list and immediately add to plan
+    const enriched: Kpi = { ...newKpi, areaName: AREAS.find((a) => a.id === newKpi.area)?.name };
+    setKpis((prev) => [...prev, enriched]);
+    const entry: PlanEntry = {
+      kpiId: enriched.id,
+      kpi: enriched,
+      assignee: enriched.reviewer || enriched.owner || "",
+      priority: autoPriority(enriched),
+      plannedDate: nextWorkday(14),
+      notes: "",
+      done: false,
+    };
+    setPlan((prev) => [entry, ...prev]);
+    setShowNewKpiModal(false);
+    onKpisUpdated?.();
+  }
+
   return (
     <div>
+      {showNewKpiModal && (
+        <NewKpiModal onClose={() => setShowNewKpiModal(false)} onCreated={handleKpiCreated} />
+      )}
       <div className="view-header">
         <div>
           <h2 className="view-title">Prüfplanung</h2>
@@ -151,6 +326,11 @@ export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; n
               <option key={q} value={q}>{q}</option>
             ))}
           </select>
+          {isAdmin && (
+            <button className="btn btn-ghost" onClick={() => setShowNewKpiModal(true)} style={{ fontSize: 13 }}>
+              + Neuer KPI
+            </button>
+          )}
           {isAdmin && (
             <button className="btn btn-primary" onClick={savePlan} disabled={saving}>
               {saving ? "Speichern…" : saved ? "✓ Gespeichert" : "Prüfplan speichern"}

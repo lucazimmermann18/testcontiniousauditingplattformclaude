@@ -266,7 +266,7 @@ export function AppShell() {
           {view === "agents"    && <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />}
           {view === "history"   && <AuditHistoryView kpis={kpis} onOpenKpi={openKpi} />}
           {view === "quarters"  && <QuarterCompareView kpis={kpis} />}
-          {view === "planning"  && <AuditPlanView kpis={kpis} me={me} />}
+          {view === "planning"  && <AuditPlanView kpis={kpis} me={me} onKpisUpdated={fetchKpis} />}
           {view === "calendar"  && <CalendarView kpis={kpis} findings={findings} />}
           {view === "approvals" && <ApprovalsView me={me} />}
         </main>

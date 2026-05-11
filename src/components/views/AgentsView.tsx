@@ -120,6 +120,7 @@ interface Schedule {
   kpiId: string;
   enabled: boolean;
   intervalHours: number;
+  lastRunAt: string | null;
   nextRunAt: string | null;
   kpi: { code: string; title: string; agent: string };
 }
@@ -127,10 +128,31 @@ interface Schedule {
 function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [cronTriggering, setCronTriggering] = useState(false);
+  const [cronResult, setCronResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/agents/schedule").then((r) => r.ok ? r.json() : []).then(setSchedules);
   }, []);
+
+  async function triggerCronNow() {
+    setCronTriggering(true);
+    setCronResult(null);
+    const secret = prompt("CRON_SECRET eingeben (nur für Administratoren):");
+    if (!secret) { setCronTriggering(false); return; }
+    const res = await fetch("/api/cron/run-scheduled-agents", {
+      method: "POST",
+      headers: { "x-cron-secret": secret },
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setCronResult(`✓ ${data.ran} Agent${data.ran !== 1 ? "en" : ""} gestartet (${data.totalDueKpis} fällig, ${data.durationMs}ms)`);
+      fetch("/api/agents/schedule").then((r) => r.ok ? r.json() : []).then(setSchedules);
+    } else {
+      setCronResult(`✗ ${data.error ?? "Fehler"}`);
+    }
+    setCronTriggering(false);
+  }
 
   async function updateSchedule(kpiId: string, patch: { enabled?: boolean; intervalHours?: number }) {
     setSaving((s) => ({ ...s, [kpiId]: true }));
@@ -159,19 +181,56 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
 
   const scheduleMap = Object.fromEntries(schedules.map((s) => [s.kpiId, s]));
 
+  const enabledCount = schedules.filter((s) => s.enabled).length;
+  const dueNow = schedules.filter((s) => s.enabled && s.nextRunAt && new Date(s.nextRunAt) <= new Date()).length;
+
   return (
     <div className="schedule-section">
-      <div className="schedule-title">Automatische Ausführung</div>
+      <div className="schedule-title-row">
+        <div>
+          <div className="schedule-title">Automatische Ausführung</div>
+          <div className="schedule-subtitle">
+            {enabledCount > 0
+              ? `${enabledCount} aktiv · ${dueNow > 0 ? `${dueNow} jetzt fällig` : "alle aktuell"}`
+              : "Keine aktiven Zeitpläne"}
+          </div>
+        </div>
+        <button
+          className={`btn btn-ghost${cronTriggering ? " btn-loading" : ""}`}
+          onClick={triggerCronNow}
+          disabled={cronTriggering}
+          title="Alle fälligen Agenten jetzt manuell starten (erfordert CRON_SECRET)"
+          style={{ fontSize: 12 }}
+        >
+          {cronTriggering ? "Starte…" : "▶ Jetzt ausführen"}
+        </button>
+      </div>
+
+      {cronResult && (
+        <div className={`schedule-cron-result${cronResult.startsWith("✓") ? " schedule-cron-ok" : " schedule-cron-err"}`}>
+          {cronResult}
+        </div>
+      )}
+
       <div className="schedule-table">
         {kpis.map((kpi) => {
           const sched = scheduleMap[kpi.id];
           const enabled = sched?.enabled ?? false;
           const intervalHours = sched?.intervalHours ?? 24;
+          const nextRunAt = sched?.nextRunAt ? new Date(sched.nextRunAt) : null;
+          const lastRunAt = sched?.lastRunAt ? new Date(sched.lastRunAt) : null;
+          const isDue = enabled && nextRunAt && nextRunAt <= new Date();
           return (
-            <div key={kpi.id} className="schedule-row">
+            <div key={kpi.id} className={`schedule-row${isDue ? " schedule-row-due" : ""}`}>
               <div className="schedule-row-info">
                 <span className="schedule-code">{kpi.code}</span>
                 <span className="schedule-agent">{kpi.agent}</span>
+                {lastRunAt && (
+                  <span className="schedule-last-run" title={`Zuletzt: ${lastRunAt.toLocaleString("de-DE")}`}>
+                    {lastRunAt.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+                {isDue && <span className="schedule-due-badge">Fällig</span>}
               </div>
               <div className="schedule-controls">
                 <button
@@ -194,6 +253,11 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
                   <option value={168}>Wöchentlich</option>
                   <option value={720}>Monatlich</option>
                 </select>
+                {enabled && nextRunAt && (
+                  <span className="schedule-next-run">
+                    {isDue ? "Jetzt fällig" : `nächste: ${nextRunAt.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
+                  </span>
+                )}
               </div>
             </div>
           );
