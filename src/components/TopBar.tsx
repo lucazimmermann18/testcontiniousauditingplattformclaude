@@ -23,8 +23,9 @@ const NAV: NavItem[] = [
   { kind: "link", id: "tasks",    label: "Aufgaben" },
   {
     kind: "group", label: "Planung", children: [
-      { id: "planning",  label: "Prüfplanung", sub: "Jahresplanung & Termine" },
-      { id: "calendar",  label: "Kalender",    sub: "Prüftermine & Fälligkeiten" },
+      { id: "planning",  label: "Prüfplanung",       sub: "Jahresplanung & Termine" },
+      { id: "approvals", label: "Freigabe-Dashboard", sub: "Offene Genehmigungen" },
+      { id: "calendar",  label: "Kalender",           sub: "Prüftermine & Fälligkeiten" },
     ],
   },
   {
@@ -122,6 +123,7 @@ const ALL_MOBILE: { id: ViewId; label: string; highlight?: boolean }[] = [
   { id: "history",   label: "Audit-Verlauf" },
   { id: "quarters",  label: "Quartalsvergleich" },
   { id: "planning",  label: "Prüfplanung" },
+  { id: "approvals", label: "Freigaben" },
   { id: "calendar",  label: "Kalender" },
   { id: "assistant", label: "KI-Assistent", highlight: true },
 ];

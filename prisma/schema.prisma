@@ -107,6 +107,24 @@ model Kpi {
   dataSource    DataSource?
   tasks         Task[]
   approval      KpiApproval?
+  planEntries   AuditPlanEntry[]
+}
+
+model AuditPlanEntry {
+  id          String   @id @default(cuid())
+  quarter     String
+  kpiId       String
+  assignee    String   @default("")
+  priority    String   @default("medium")
+  plannedDate String
+  notes       String   @default("")
+  done        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  kpi         Kpi      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+
+  @@unique([quarter, kpiId])
 }
 
 enum FindingSeverity {

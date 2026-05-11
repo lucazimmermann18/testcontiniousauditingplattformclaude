@@ -28,25 +28,52 @@ function autoPriority(kpi: Kpi): PlanEntry["priority"] {
   return "low";
 }
 
+function nextWorkday(daysFromNow: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; name: string } | null }) {
   const [plan, setPlan] = useState<PlanEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [editId, setEditId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [quarter, setQuarter] = useState(CURRENT_QUARTER);
   const isAdmin = me?.role === "admin" || me?.role === "head_of_audit";
 
-  useEffect(() => {
-    const stored = localStorage.getItem("audit_plan_v2");
-    if (stored) {
-      try {
-        const savedPlan = JSON.parse(stored) as Omit<PlanEntry, "kpi">[];
-        const restored = savedPlan
-          .map((e) => ({ ...e, kpi: kpis.find((k) => k.id === e.kpiId)! }))
-          .filter((e) => e.kpi);
-        if (restored.length) { setPlan(restored); return; }
-      } catch { /* ignore */ }
-    }
-    // Auto-generate plan from KPIs
+  const loadPlan = useCallback(async (q: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/audit-plan?quarter=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const dbEntries: any[] = await res.json();
+        if (dbEntries.length > 0) {
+          const restored: PlanEntry[] = dbEntries
+            .map((e) => {
+              const kpi = kpis.find((k) => k.id === e.kpiId);
+              if (!kpi) return null;
+              return {
+                kpiId: e.kpiId,
+                kpi,
+                assignee: e.assignee,
+                priority: e.priority as PlanEntry["priority"],
+                plannedDate: e.plannedDate,
+                notes: e.notes,
+                done: e.done,
+              };
+            })
+            .filter(Boolean) as PlanEntry[];
+          setPlan(restored);
+          return;
+        }
+      }
+    } catch { /* fall through to auto-generate */ }
+
+    // Auto-generate from KPIs
     const generated = kpis
       .filter((k) => k.status !== "pending")
       .sort((a, b) => {
@@ -65,22 +92,39 @@ export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; n
     setPlan(generated);
   }, [kpis]);
 
-  function nextWorkday(daysFromNow: number) {
-    const d = new Date();
-    d.setDate(d.getDate() + daysFromNow);
-    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
-  }
+  useEffect(() => {
+    loadPlan(quarter);
+    setLoading(false);
+  }, [quarter, loadPlan]);
 
-  const savePlan = useCallback(() => {
-    const toStore = plan.map(({ kpi: _kpi, ...rest }) => rest);
-    localStorage.setItem("audit_plan_v2", JSON.stringify(toStore));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }, [plan]);
+  const savePlan = useCallback(async () => {
+    setSaving(true);
+    try {
+      const entries = plan.map(({ kpi: _kpi, ...rest }) => rest);
+      const res = await fetch("/api/audit-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quarter, entries }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [plan, quarter]);
 
-  function updateEntry(kpiId: string, patch: Partial<PlanEntry>) {
+  async function updateEntry(kpiId: string, patch: Partial<PlanEntry>) {
     setPlan((prev) => prev.map((e) => e.kpiId === kpiId ? { ...e, ...patch } : e));
+    // Persist single entry immediately
+    try {
+      await fetch("/api/audit-plan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quarter, kpiId, ...patch }),
+      });
+    } catch { /* ignore, plan state is updated locally */ }
   }
 
   const filtered = filterPriority === "all" ? plan : plan.filter((e) => e.priority === filterPriority);
@@ -93,12 +137,23 @@ export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; n
       <div className="view-header">
         <div>
           <h2 className="view-title">Prüfplanung</h2>
-          <p className="view-sub">Quartal {CURRENT_QUARTER} · {plan.length} KPIs geplant · {done} abgeschlossen</p>
+          <p className="view-sub">{loading ? "Lade…" : `Quartal ${quarter} · ${plan.length} KPIs geplant · ${done} abgeschlossen`}</p>
         </div>
-        <div className="apv-header-actions">
+        <div className="apv-header-actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {/* Quarter selector */}
+          <select
+            className="settings-input settings-select"
+            style={{ padding: "6px 12px", fontSize: 13 }}
+            value={quarter}
+            onChange={(e) => setQuarter(e.target.value)}
+          >
+            {QUARTERS.map((q) => (
+              <option key={q} value={q}>{q}</option>
+            ))}
+          </select>
           {isAdmin && (
-            <button className="btn btn-primary" onClick={savePlan}>
-              {saved ? "✓ Gespeichert" : "Prüfplan speichern"}
+            <button className="btn btn-primary" onClick={savePlan} disabled={saving}>
+              {saving ? "Speichern…" : saved ? "✓ Gespeichert" : "Prüfplan speichern"}
             </button>
           )}
         </div>
@@ -122,7 +177,6 @@ export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; n
           <div className="apv-stat-num">{plan.length - done}</div>
           <div className="apv-stat-label">Ausstehend</div>
         </div>
-        {/* Progress bar */}
         <div className="apv-progress-wrap">
           <div className="apv-progress-label">Fortschritt {plan.length > 0 ? Math.round(done / plan.length * 100) : 0}%</div>
           <div className="apv-progress-bar">
@@ -173,7 +227,6 @@ export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; n
                       className="apv-check"
                       checked={entry.done}
                       onChange={(e) => updateEntry(entry.kpiId, { done: e.target.checked })}
-                      disabled={!isAdmin}
                     />
                   </td>
                   <td>
@@ -215,7 +268,9 @@ export function AuditPlanView({ kpis, me }: { kpis: Kpi[]; me: { role: string; n
                       />
                     ) : (
                       <span className={`apv-date${isOverdue ? " apv-date-overdue" : ""}`}>
-                        {new Date(entry.plannedDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        {entry.plannedDate
+                          ? new Date(entry.plannedDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
+                          : "—"}
                         {isOverdue && " ⚠"}
                       </span>
                     )}
