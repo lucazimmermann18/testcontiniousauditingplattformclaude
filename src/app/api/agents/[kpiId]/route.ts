@@ -2,8 +2,10 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { streamAgent } from "@/lib/agents/runner";
 
+const AGENT_TIMEOUT_MS = 5 * 60 * 1_000; // 5-minute hard limit
+
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ kpiId: string }> }
 ) {
   const session = await auth();
@@ -12,20 +14,41 @@ export async function POST(
   const { kpiId } = await params;
 
   const encoder = new TextEncoder();
+  let streamClosed = false;
+
   const stream = new ReadableStream({
     async start(controller) {
+      function close() {
+        if (!streamClosed) { streamClosed = true; controller.close(); }
+      }
+
+      // B-004: hard timeout — close stream after 5 minutes
+      const timeoutId = setTimeout(() => {
+        if (!streamClosed) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: "Agent-Timeout (5 min)" })}\n\n`));
+          close();
+        }
+      }, AGENT_TIMEOUT_MS);
+
       try {
         for await (const chunk of streamAgent(kpiId)) {
-          const data = `data: ${JSON.stringify(chunk)}\n\n`;
-          controller.enqueue(encoder.encode(data));
+          // B-004: stop immediately on client disconnect
+          if (req.signal.aborted || streamClosed) break;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
           if (chunk.type === "done" || chunk.type === "error") break;
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: msg })}\n\n`));
+        if (!streamClosed) {
+          const msg = err instanceof Error ? err.message : String(err);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: msg })}\n\n`));
+        }
       } finally {
-        controller.close();
+        clearTimeout(timeoutId);
+        close();
       }
+    },
+    cancel() {
+      streamClosed = true;
     },
   });
 

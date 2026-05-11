@@ -481,17 +481,34 @@ export function FindingsView({
   const [meRole, setMeRole] = useState("owner");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [visibleOpen, setVisibleOpen] = useState(20);
+  const [sortBy, setSortBy] = useState<"severity" | "date" | "status" | "kpi">("severity");
   const showToast = useToast();
 
   const PAGE = 20;
+
+  const SEVERITY_ORDER: Record<string, number> = { hoch: 0, mittel: 1, niedrig: 2 };
+
+  function sortFindings(list: FindingWithAssignee[]) {
+    return [...list].sort((a, b) => {
+      if (sortBy === "severity") return (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9);
+      if (sortBy === "date")     return new Date(b.opened).getTime() - new Date(a.opened).getTime();
+      if (sortBy === "status")   return a.status.localeCompare(b.status);
+      if (sortBy === "kpi") {
+        const ka = kpis.find((k) => k.id === a.kpi)?.code ?? "";
+        const kb = kpis.find((k) => k.id === b.kpi)?.code ?? "";
+        return ka.localeCompare(kb);
+      }
+      return 0;
+    });
+  }
 
   useEffect(() => {
     fetch("/api/users").then((r) => r.ok ? r.json() : []).then((data: { id: string; name: string; avatar: string | null }[]) => setUsers(data));
     fetch("/api/me").then((r) => r.ok ? r.json() : null).then((me) => { if (me?.role) setMeRole(me.role); });
   }, []);
 
-  const openFindings = findings.filter((f) => f.status !== "geschlossen");
-  const closedFindings = findings.filter((f) => f.status === "geschlossen");
+  const openFindings = sortFindings(findings.filter((f) => f.status !== "geschlossen"));
+  const closedFindings = sortFindings(findings.filter((f) => f.status === "geschlossen"));
 
   async function handleStatusChange(id: string, status: string) {
     const res = await fetch(`/api/findings/${id}`, {
@@ -642,6 +659,20 @@ export function FindingsView({
           </div>
         </form>
       )}
+
+      {/* Sort control */}
+      <div className="findings-sort-bar">
+        <span className="findings-sort-label">Sortieren:</span>
+        {(["severity", "date", "status", "kpi"] as const).map((opt) => (
+          <button
+            key={opt}
+            className={`findings-sort-btn${sortBy === opt ? " active" : ""}`}
+            onClick={() => setSortBy(opt)}
+          >
+            {opt === "severity" ? "Schwere" : opt === "date" ? "Datum" : opt === "status" ? "Status" : "KPI-Code"}
+          </button>
+        ))}
+      </div>
 
       {/* Bulk action bar */}
       {selected.size > 0 && (

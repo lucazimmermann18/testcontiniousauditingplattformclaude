@@ -12,6 +12,13 @@ interface ApiKeyRecord {
   updatedAt: string;
 }
 
+const KEY_PATTERNS: Record<Provider, { pattern: RegExp; hint: string }> = {
+  anthropic:  { pattern: /^sk-ant-/, hint: 'Anthropic-Keys beginnen mit "sk-ant-"' },
+  openai:     { pattern: /^sk-/,     hint: 'OpenAI-Keys beginnen mit "sk-"' },
+  deepseek:   { pattern: /^sk-/,     hint: 'DeepSeek-Keys beginnen mit "sk-"' },
+  openrouter: { pattern: /^sk-or-/,  hint: 'OpenRouter-Keys beginnen mit "sk-or-"' },
+};
+
 const PROVIDER_META: Record<Provider, { label: string; color: string; models: string[]; placeholder: string }> = {
   anthropic: {
     label: "Anthropic",
@@ -79,8 +86,18 @@ export function ApiKeySettings() {
     setForm((f) => ({ ...f, provider: p, model: meta.models[0] }));
   }
 
+  const keyFormatError = form.apiKey
+    ? KEY_PATTERNS[form.provider].pattern.test(form.apiKey)
+      ? null
+      : KEY_PATTERNS[form.provider].hint
+    : null;
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (keyFormatError) {
+      setMsg({ text: keyFormatError, ok: false });
+      return;
+    }
     setSaving(true);
     setMsg(null);
     try {
@@ -198,16 +215,22 @@ export function ApiKeySettings() {
 
           <div className="settings-row">
             <label className="settings-label" htmlFor="ak-key">API-Key</label>
-            <input
-              id="ak-key"
-              type="password"
-              className="settings-input"
-              placeholder={meta.placeholder}
-              value={form.apiKey}
-              onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-              required
-              autoComplete="off"
-            />
+            <div style={{ flex: 1 }}>
+              <input
+                id="ak-key"
+                type="password"
+                className={`settings-input${keyFormatError ? " input-invalid" : ""}`}
+                placeholder={meta.placeholder}
+                value={form.apiKey}
+                onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+                required
+                autoComplete="off"
+                style={{ width: "100%" }}
+              />
+              {keyFormatError && (
+                <div className="field-error" style={{ marginTop: 4 }}>{keyFormatError}</div>
+              )}
+            </div>
           </div>
 
           <div className="settings-row">

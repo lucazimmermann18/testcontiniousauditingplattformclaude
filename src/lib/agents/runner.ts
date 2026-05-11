@@ -14,6 +14,24 @@ import type { AgentResult, AgentContext, StageResult, StreamChunk } from "./type
 // ── Helpers ──────────────────────────────────────────────────
 
 function parseJSON<T>(raw: string): T {
+  // 1. Code-fence extraction (```json … ```)
+  const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1].trim()) as T; } catch { /* fall through */ }
+  }
+  // 2. Balanced-brace extraction
+  const start = raw.indexOf("{");
+  if (start !== -1) {
+    let depth = 0, i = start;
+    for (; i < raw.length; i++) {
+      if (raw[i] === "{") depth++;
+      else if (raw[i] === "}") { depth--; if (depth === 0) break; }
+    }
+    if (depth === 0) {
+      try { return JSON.parse(raw.slice(start, i + 1)) as T; } catch { /* fall through */ }
+    }
+  }
+  // 3. Greedy regex fallback
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) throw new Error("Kein gültiges JSON in Agent-Antwort");
   return JSON.parse(m[0]) as T;
@@ -279,10 +297,14 @@ export async function* streamAgent(kpiId: string): AsyncGenerator<StreamChunk> {
       },
     });
 
-    await db.kpi.update({
-      where: { id: kpiId },
-      data: { status: result.status as any, confidence: result.confidence, lastRun: "vor wenigen Sek." },
-    });
+    // B-003: only overwrite status when agent was still "running" (guard against manual changes during the run)
+    const currentKpi = await db.kpi.findUnique({ where: { id: kpiId }, select: { status: true } });
+    if (currentKpi?.status === "running") {
+      await db.kpi.update({
+        where: { id: kpiId },
+        data: { status: result.status as any, confidence: result.confidence, lastRun: "vor wenigen Sek." },
+      });
+    }
 
     await db.activity.create({
       data: {
@@ -295,23 +317,36 @@ export async function* streamAgent(kpiId: string): AsyncGenerator<StreamChunk> {
     if (result.status === "finding" && result.anomalies.length > 0) {
       const kpiOwner = await db.kpi.findUnique({ where: { id: kpiId }, select: { ownerId: true } });
       if (kpiOwner) {
-        await db.finding.create({
-          data: {
-            kpiId,
-            title: result.anomalies[0].title,
-            desc: result.summary,
-            severity: result.anomalies[0].severity as any,
-            ownerId: kpiOwner.ownerId,
-            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          },
+        // B-001: deduplicate — skip if there is already an open finding for this KPI
+        const existingFinding = await db.finding.findFirst({
+          where: { kpiId, status: { not: "geschlossen" } },
         });
+        if (!existingFinding) {
+          await db.finding.create({
+            data: {
+              kpiId,
+              title: result.anomalies[0].title,
+              desc: result.summary,
+              severity: result.anomalies[0].severity as any,
+              ownerId: kpiOwner.ownerId,
+              dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            },
+          });
+          emit({ type: "finding_new", kpiId, kpiCode: ctx.kpiCode, title: result.anomalies[0].title, severity: result.anomalies[0].severity });
+        }
       }
     }
 
+    // B-002: advance nextRunAt on manual trigger so the scheduler stays in sync
+    const existingSchedule = await db.agentSchedule.findUnique({ where: { kpiId } });
+    const intervalHours = existingSchedule?.intervalHours ?? 24;
+    const nextRunAt = existingSchedule?.enabled
+      ? new Date(Date.now() + intervalHours * 3_600_000)
+      : null;
     await db.agentSchedule.upsert({
       where: { kpiId },
       create: { kpiId, lastRunAt: new Date(), nextRunAt: null },
-      update: { lastRunAt: new Date() },
+      update: { lastRunAt: new Date(), nextRunAt },
     });
 
     // Push real-time SSE event to all connected clients
