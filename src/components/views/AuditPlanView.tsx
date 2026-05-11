@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Kpi } from "@/types";
 import { CURRENT_QUARTER, QUARTERS, AREAS } from "@/data/audit-data";
 
@@ -186,6 +186,7 @@ function NewKpiModal({
 
 export function AuditPlanView({ kpis: initialKpis, me, onKpisUpdated }: { kpis: Kpi[]; me: { role: string; name: string } | null; onKpisUpdated?: () => void }) {
   const [kpis, setKpis] = useState<Kpi[]>(initialKpis);
+  const kpisRef = useRef<Kpi[]>(initialKpis);
   const [plan, setPlan] = useState<PlanEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterPriority, setFilterPriority] = useState<string>("all");
@@ -196,8 +197,11 @@ export function AuditPlanView({ kpis: initialKpis, me, onKpisUpdated }: { kpis: 
   const [quarter, setQuarter] = useState(CURRENT_QUARTER);
   const isAdmin = me?.role === "admin" || me?.role === "head_of_audit";
 
-  // Sync when parent re-fetches KPIs
-  useEffect(() => { setKpis(initialKpis); }, [initialKpis]);
+  // Keep ref in sync — loadPlan reads from ref to avoid stale closures
+  useEffect(() => {
+    setKpis(initialKpis);
+    kpisRef.current = initialKpis;
+  }, [initialKpis]);
 
   const loadPlan = useCallback(async (q: string) => {
     setLoading(true);
@@ -206,9 +210,10 @@ export function AuditPlanView({ kpis: initialKpis, me, onKpisUpdated }: { kpis: 
       if (res.ok) {
         const dbEntries: any[] = await res.json();
         if (dbEntries.length > 0) {
+          const currentKpis = kpisRef.current;
           const restored: PlanEntry[] = dbEntries
             .map((e) => {
-              const kpi = kpis.find((k) => k.id === e.kpiId);
+              const kpi = currentKpis.find((k) => k.id === e.kpiId);
               if (!kpi) return null;
               return {
                 kpiId: e.kpiId,
@@ -222,13 +227,14 @@ export function AuditPlanView({ kpis: initialKpis, me, onKpisUpdated }: { kpis: 
             })
             .filter(Boolean) as PlanEntry[];
           setPlan(restored);
+          setLoading(false);
           return;
         }
       }
     } catch { /* fall through to auto-generate */ }
 
     // Auto-generate from KPIs
-    const generated = kpis
+    const generated = kpisRef.current
       .filter((k) => k.status !== "pending")
       .sort((a, b) => {
         const pa = PRIORITY_ORDER[autoPriority(a)];
@@ -244,11 +250,12 @@ export function AuditPlanView({ kpis: initialKpis, me, onKpisUpdated }: { kpis: 
         done: false,
       }));
     setPlan(generated);
-  }, [kpis]);
+    setLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // reads kpisRef — no re-creation on KPI list change
 
   useEffect(() => {
     loadPlan(quarter);
-    setLoading(false);
   }, [quarter, loadPlan]);
 
   const savePlan = useCallback(async () => {

@@ -50,8 +50,10 @@ export default async function ReportPage() {
     pending: kpis.filter((k) => k.status === "pending" || k.status === "running").length,
   };
 
-  const avgConfidence = kpis.filter((k) => k.confidence > 0).reduce((acc, k, _, arr) =>
-    acc + k.confidence / arr.length, 0);
+  const confKpis = kpis.filter((k) => k.confidence > 0);
+  const avgConfidence = confKpis.length > 0
+    ? confKpis.reduce((acc, k) => acc + k.confidence, 0) / confKpis.length
+    : 0;
 
   const openFindings = findings.length;
   const criticalFindings = findings.filter((f) => f.severity === "hoch").length;

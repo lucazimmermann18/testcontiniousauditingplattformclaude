@@ -100,5 +100,26 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ id: kpi.id, code: kpi.code }, { status: 201 });
+  return NextResponse.json({
+    id: kpi.id,
+    code: kpi.code,
+    area: kpi.area.id,
+    areaName: kpi.area.name,
+    areaShort: kpi.area.short,
+    areaColor: kpi.area.color,
+    title: kpi.title,
+    desc: kpi.desc,
+    risk: kpi.risk,
+    status: kpi.status,
+    confidence: kpi.confidence,
+    value: kpi.value,
+    delta: kpi.delta,
+    lastRun: kpi.lastRun,
+    agent: kpi.agent,
+    trend: JSON.parse(kpi.trend || "[]"),
+    owner: kpi.owner.name,
+    ownerId: kpi.owner.id,
+    reviewer: kpi.reviewer.name,
+    reviewerId: kpi.reviewer.id,
+  }, { status: 201 });
 }
