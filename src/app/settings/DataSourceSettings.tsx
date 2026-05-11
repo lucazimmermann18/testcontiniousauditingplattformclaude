@@ -36,6 +36,9 @@ const BLANK_FORM = {
   type: "REST" as "REST" | "CSV" | "MANUAL",
   url: "",
   method: "GET" as "GET" | "POST",
+  authType: "none" as "none" | "bearer" | "apikey" | "basic",
+  authToken: "",
+  authKeyName: "",
   headerKey: "",
   headerValue: "",
   headers: {} as Record<string, string>,
@@ -80,6 +83,9 @@ export function DataSourceSettings({ kpis }: { kpis: Kpi[] }) {
         type: existing.type,
         url: existing.url ?? "",
         method: (existing.method as "GET" | "POST"),
+        authType: "none",
+        authToken: "",
+        authKeyName: "",
         headerKey: "",
         headerValue: "",
         headers: {},
@@ -315,9 +321,83 @@ export function DataSourceSettings({ kpis }: { kpis: Kpi[] }) {
                       )}
                     </div>
 
+                    {/* Auth type quick-config */}
+                    <div className="settings-row" style={{ marginTop: "8px" }}>
+                      <label className="settings-label">Authentifizierung</label>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <select
+                          className="settings-input settings-select rest-method-select"
+                          style={{ maxWidth: 140 }}
+                          value={form.authType}
+                          onChange={(e) => {
+                            const t = e.target.value as typeof form.authType;
+                            setForm((f) => {
+                              const next = { ...f, authType: t, headerKey: "", headerValue: "" };
+                              if (t === "bearer") { next.headerKey = "Authorization"; next.headerValue = "Bearer "; }
+                              if (t === "apikey") { next.headerKey = f.authKeyName || "X-API-Key"; }
+                              if (t === "basic")  { next.headerKey = "Authorization"; next.headerValue = "Basic "; }
+                              return next;
+                            });
+                          }}
+                        >
+                          <option value="none">Kein Auth</option>
+                          <option value="bearer">Bearer Token</option>
+                          <option value="apikey">API Key</option>
+                          <option value="basic">Basic Auth</option>
+                        </select>
+                        {form.authType === "apikey" && (
+                          <input
+                            className="settings-input"
+                            style={{ maxWidth: 160 }}
+                            placeholder="Header-Name (z.B. X-API-Key)"
+                            value={form.authKeyName}
+                            onChange={(e) => setForm((f) => ({ ...f, authKeyName: e.target.value, headerKey: e.target.value }))}
+                          />
+                        )}
+                        {form.authType !== "none" && (
+                          <input
+                            className="settings-input"
+                            style={{ flex: 1 }}
+                            type={form.authType === "basic" ? "password" : "text"}
+                            placeholder={
+                              form.authType === "bearer" ? "eyJ… (Token nach Bearer)" :
+                              form.authType === "apikey" ? "API-Schlüssel" :
+                              "user:password (Base64 wird gesetzt)"
+                            }
+                            value={form.authToken}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setForm((f) => ({
+                                ...f, authToken: val,
+                                headerValue: f.authType === "bearer" ? `Bearer ${val}` :
+                                             f.authType === "basic" ? `Basic ${btoa(val)}` : val,
+                              }));
+                            }}
+                          />
+                        )}
+                        {form.authType !== "none" && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => {
+                              if (form.headerKey && form.headerValue) {
+                                setForm((f) => ({
+                                  ...f,
+                                  headers: { ...f.headers, [f.headerKey]: f.headerValue },
+                                  headerKey: "", headerValue: "", authToken: "",
+                                }));
+                              }
+                            }}
+                          >
+                            Hinzufügen
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Headers */}
                     <div className="settings-row" style={{ marginTop: "8px" }}>
-                      <label className="settings-label">Auth-Header {src?.hasHeaders && !Object.keys(form.headers).length ? "(gespeichert — zum Überschreiben neu eingeben)" : ""}</label>
+                      <label className="settings-label">Eigene Header {src?.hasHeaders && !Object.keys(form.headers).length ? "(gespeichert — zum Überschreiben neu eingeben)" : ""}</label>
                       <div style={{ display: "flex", gap: "8px", marginBottom: "6px" }}>
                         <input className="settings-input" style={{ flex: 1 }} value={form.headerKey} onChange={(e) => setForm((f) => ({ ...f, headerKey: e.target.value }))} placeholder="Header-Name (z.B. Authorization)" />
                         <input className="settings-input" style={{ flex: 2 }} value={form.headerValue} onChange={(e) => setForm((f) => ({ ...f, headerValue: e.target.value }))} placeholder="Wert (z.B. Bearer eyJ...)" />
@@ -359,13 +439,20 @@ export function DataSourceSettings({ kpis }: { kpis: Kpi[] }) {
                 {src && (
                   <div className="ds-test-section">
                     {src.type === "REST" && src.url && (
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => triggerFetch(src.id, kpi.id)}
-                        disabled={testing === src.id}
-                      >
-                        {testing === src.id ? "Abruf läuft…" : "Jetzt abrufen (Test)"}
-                      </button>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <button
+                          className="btn btn-ghost"
+                          onClick={() => triggerFetch(src.id, kpi.id)}
+                          disabled={testing === src.id}
+                        >
+                          {testing === src.id ? "⏳ Abruf läuft…" : "▶ Jetzt abrufen (Test)"}
+                        </button>
+                        {testResult[kpi.id] && (
+                          <div className={`rest-test-result ${testResult[kpi.id].ok ? "rest-test-ok" : "rest-test-err"}`}>
+                            {testResult[kpi.id].text}
+                          </div>
+                        )}
+                      </div>
                     )}
                     {src.type === "CSV" && (
                       <label className="btn btn-ghost ds-upload-btn">

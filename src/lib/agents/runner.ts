@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { emit } from "@/lib/events";
 import { callAgentOnce, streamAgentResponse } from "./provider";
 import {
   getSpecialist,
@@ -312,6 +313,9 @@ export async function* streamAgent(kpiId: string): AsyncGenerator<StreamChunk> {
       create: { kpiId, lastRunAt: new Date(), nextRunAt: null },
       update: { lastRunAt: new Date() },
     });
+
+    // Push real-time SSE event to all connected clients
+    emit({ type: "agent_done", kpiId, kpiCode: ctx.kpiCode, status: result.status, summary: result.summary });
 
     yield { type: "done", result: finalResult };
   } catch (err) {

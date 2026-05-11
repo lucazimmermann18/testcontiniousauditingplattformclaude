@@ -13,10 +13,11 @@ const NAV: NavItem[] = [
   { kind: "link", id: "dashboard", label: "Übersicht" },
   {
     kind: "group", label: "Analyse", children: [
-      { id: "heatmap",  label: "Risiko-Heatmap",     sub: "Visuelle Risikoübersicht" },
-      { id: "timeline", label: "Quartals-Timeline",   sub: "Zeitachse aller KPIs" },
-      { id: "quarters", label: "Quartalsvergleich",   sub: "Q/Q Trendanalyse" },
-      { id: "history",  label: "Audit-Verlauf",       sub: "Prüfhistorie & Protokoll" },
+      { id: "analytics", label: "Analytics",           sub: "Risiko-Radar & Kennzahlen", highlight: true },
+      { id: "heatmap",   label: "Risiko-Heatmap",     sub: "Visuelle Risikoübersicht" },
+      { id: "timeline",  label: "Quartals-Timeline",   sub: "Zeitachse aller KPIs" },
+      { id: "quarters",  label: "Quartalsvergleich",   sub: "Q/Q Trendanalyse" },
+      { id: "history",   label: "Audit-Verlauf",       sub: "Prüfhistorie & Protokoll" },
     ],
   },
   { kind: "link", id: "findings", label: "Findings" },

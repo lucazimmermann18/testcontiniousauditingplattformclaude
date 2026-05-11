@@ -11,6 +11,7 @@ import { AuditHistoryView } from "./views/AuditHistoryView";
 import { TasksView } from "./views/TasksView";
 import { AssistantView } from "./views/AssistantView";
 import { QuarterCompareView } from "./views/QuarterCompareView";
+import { AnalyticsView } from "./views/AnalyticsView";
 import { AuditPlanView } from "./views/AuditPlanView";
 import { ApprovalsView } from "./views/ApprovalsView";
 import { CalendarView } from "./views/CalendarView";
@@ -23,7 +24,7 @@ import { KpiDetail } from "./KpiDetail";
 import { CURRENT_QUARTER } from "@/data/audit-data";
 import type { Kpi, Finding, Activity } from "@/types";
 
-export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant" | "quarters" | "planning" | "calendar" | "approvals";
+export type ViewId = "dashboard" | "heatmap" | "timeline" | "findings" | "tasks" | "agents" | "history" | "assistant" | "quarters" | "planning" | "calendar" | "approvals" | "analytics";
 
 interface MeUser {
   id: string;
@@ -293,6 +294,7 @@ function AppShellInner() {
           {view === "agents"    && <AgentsView kpis={kpis} onKpisUpdated={fetchKpis} />}
           {view === "history"   && <AuditHistoryView kpis={kpis} onOpenKpi={openKpi} />}
           {view === "quarters"  && <QuarterCompareView kpis={kpis} />}
+          {view === "analytics" && <AnalyticsView kpis={kpis} findings={findings} />}
           {view === "planning"  && <AuditPlanView kpis={kpis} me={me} onKpisUpdated={fetchKpis} />}
           {view === "calendar"  && <CalendarView kpis={kpis} findings={findings} />}
           {view === "approvals" && <ApprovalsView me={me} />}

@@ -480,7 +480,10 @@ export function FindingsView({
   const [users, setUsers] = useState<User[]>([]);
   const [meRole, setMeRole] = useState("owner");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [visibleOpen, setVisibleOpen] = useState(20);
   const showToast = useToast();
+
+  const PAGE = 20;
 
   useEffect(() => {
     fetch("/api/users").then((r) => r.ok ? r.json() : []).then((data: { id: string; name: string; avatar: string | null }[]) => setUsers(data));
@@ -662,9 +665,9 @@ export function FindingsView({
         })}
       </div>
 
-      {/* Open findings */}
+      {/* Open findings with pagination */}
       <div className="findings-table-wrap">
-        {openFindings.map((f) => {
+        {openFindings.slice(0, visibleOpen).map((f) => {
           const kpi = kpis.find((k) => k.id === f.kpi);
           return (
             <FindingRow
@@ -688,6 +691,14 @@ export function FindingsView({
             title="Keine offenen Findings"
             sub="Alle Prüfungen sind sauber – kein Handlungsbedarf."
           />
+        )}
+        {openFindings.length > visibleOpen && (
+          <div className="findings-load-more">
+            <button className="btn btn-ghost" onClick={() => setVisibleOpen((v) => v + PAGE)}>
+              Weitere {Math.min(PAGE, openFindings.length - visibleOpen)} Findings laden
+              <span className="dashboard-load-more-count">({visibleOpen} von {openFindings.length})</span>
+            </button>
+          </div>
         )}
       </div>
 

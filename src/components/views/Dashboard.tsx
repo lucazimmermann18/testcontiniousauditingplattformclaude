@@ -303,6 +303,7 @@ export function Dashboard({
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
   const [filterRisk, setFilterRisk] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(3); // show N area groups initially
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
@@ -334,6 +335,7 @@ export function Dashboard({
     setFilterArea("all");
     setFilterStatus("all");
     setFilterRisk("all");
+    setVisibleCount(3);
   }
 
   const STATUS_FILTER_ITEMS = [
@@ -453,11 +455,24 @@ export function Dashboard({
         </div>
       )}
 
-      {/* KPI areas */}
+      {/* KPI areas with pagination */}
       <div className="areas">
-        {areaGroups.map(({ area, kpis: aKpis }) => (
+        {areaGroups.slice(0, visibleCount).map(({ area, kpis: aKpis }) => (
           <AreaSection key={area.id} area={area} kpis={aKpis} onOpenKpi={onOpenKpi} onQuickAction={onQuickAction} />
         ))}
+        {areaGroups.length > visibleCount && (
+          <div className="dashboard-load-more">
+            <button
+              className="btn btn-ghost"
+              onClick={() => setVisibleCount((c) => c + 3)}
+            >
+              Weitere {Math.min(3, areaGroups.length - visibleCount)} Bereiche anzeigen
+              <span className="dashboard-load-more-count">
+                ({visibleCount} von {areaGroups.length})
+              </span>
+            </button>
+          </div>
+        )}
         {areaGroups.length === 0 && (
           <div className="empty-state">
             <div className="empty-state-icon">🔍</div>
