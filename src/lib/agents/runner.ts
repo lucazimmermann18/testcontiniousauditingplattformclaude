@@ -108,6 +108,14 @@ export async function* streamAgent(kpiId: string): AsyncGenerator<StreamChunk> {
   const stages: StageResult[] = [];
   let raw = "";
 
+  // Snapshot the status the KPI had before this run (used to restore on failure)
+  const lastCompletedRun = await db.auditRun.findFirst({
+    where: { kpiId, status: { not: "running" }, finishedAt: { not: null } },
+    orderBy: { finishedAt: "desc" },
+    select: { status: true },
+  });
+  const statusBeforeRun = (lastCompletedRun?.status as string) ?? "review";
+
   const auditRun = await db.auditRun.create({
     data: { kpiId, agent: ctx.agentName, status: "running" },
   });
@@ -354,12 +362,71 @@ export async function* streamAgent(kpiId: string): AsyncGenerator<StreamChunk> {
 
     yield { type: "done", result: finalResult };
   } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+
+    // Mark the audit run as failed
     await db.auditRun.update({
       where: { id: auditRun.id },
       data: { status: "error", finishedAt: new Date() },
     }).catch(() => {});
-    yield { type: "error", error: err instanceof Error ? err.message : String(err) };
+
+    // Reset KPI status so the card never stays stuck on "running" forever.
+    // Restore to the status from the last completed run (or "review" if this is the first run).
+    await db.kpi.update({
+      where: { id: kpiId },
+      data: {
+        status: statusBeforeRun as any,
+        lastRun: "Fehler – bitte prüfen",
+      },
+    }).catch(() => {});
+
+    yield { type: "error", error: errorMsg };
   }
+}
+
+// ── Stuck-KPI recovery ────────────────────────────────────────
+// Resets KPIs that have been stuck on "running" for more than 10 minutes.
+// Call this from the cron job or at app startup.
+export async function recoverStuckKpis(): Promise<number> {
+  const THRESHOLD_MS = 10 * 60 * 1000;
+  const cutoff = new Date(Date.now() - THRESHOLD_MS);
+
+  // Find KPIs that are still "running" but whose most recent auditRun
+  // started more than 10 minutes ago (server likely crashed mid-run)
+  const stuckRuns = await db.auditRun.findMany({
+    where: { status: "running", startedAt: { lt: cutoff } },
+    select: { id: true, kpiId: true },
+  });
+
+  if (stuckRuns.length === 0) return 0;
+
+  await Promise.all(
+    stuckRuns.map(async (run) => {
+      // Mark the dangling audit run as error
+      await db.auditRun.update({
+        where: { id: run.id },
+        data: { status: "error", finishedAt: new Date() },
+      }).catch(() => {});
+
+      // Find what status the KPI had before this stuck run
+      const prior = await db.auditRun.findFirst({
+        where: { kpiId: run.kpiId, status: { not: "running" }, finishedAt: { not: null } },
+        orderBy: { finishedAt: "desc" },
+        select: { status: true },
+      });
+
+      // Only reset if the KPI is still "running" (not manually changed)
+      await db.kpi.updateMany({
+        where: { id: run.kpiId, status: "running" },
+        data: {
+          status: (prior?.status as any) ?? "review",
+          lastRun: "Abbruch – automatisch zurückgesetzt",
+        },
+      }).catch(() => {});
+    })
+  );
+
+  return stuckRuns.length;
 }
 
 export async function getLastAuditRun(kpiId: string) {

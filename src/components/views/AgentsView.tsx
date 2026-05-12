@@ -272,7 +272,20 @@ function SchedulingSection({ kpis }: { kpis: Kpi[] }) {
 export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated?: () => void }) {
   const [runs, setRuns] = useState<Record<string, RunState>>({});
   const [activeKpiId, setActiveKpiId] = useState<string | null>(null);
+  const [recovering, setRecovering] = useState(false);
   const abortRefs = useRef<Record<string, AbortController>>({});
+
+  // KPIs showing "running" in DB but not actively streaming in this session
+  const stuckKpis = kpis.filter(
+    (k) => k.status === "running" && !runs[k.id]
+  );
+
+  async function handleRecover() {
+    setRecovering(true);
+    await fetch("/api/agents/recover", { method: "POST" });
+    onKpisUpdated?.();
+    setRecovering(false);
+  }
 
   const agentGroups = kpis.reduce<Record<string, Kpi[]>>((acc, k) => {
     acc[k.agent] = acc[k.agent] ?? [];
@@ -402,7 +415,20 @@ export function AgentsView({ kpis, onKpisUpdated }: { kpis: Kpi[]; onKpisUpdated
           <h2 className="view-title">KI-Agenten</h2>
           <p className="view-sub">{total} autonome Prüf-Agenten · {running} gerade aktiv</p>
         </div>
-        <a href="/settings" className="btn-settings-link">⚙ Einstellungen</a>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {stuckKpis.length > 0 && (
+            <button
+              className="btn-secondary"
+              onClick={handleRecover}
+              disabled={recovering}
+              title={`${stuckKpis.length} KPI${stuckKpis.length > 1 ? "s sind" : " ist"} seit mehr als 10 Min. auf „running" hängen geblieben`}
+              style={{ color: "var(--warn)", borderColor: "var(--warn)", fontSize: 12 }}
+            >
+              {recovering ? "Wird zurückgesetzt…" : `⚠ ${stuckKpis.length} Stuck-KPI${stuckKpis.length > 1 ? "s" : ""} zurücksetzen`}
+            </button>
+          )}
+          <a href="/settings" className="btn-settings-link">⚙ Einstellungen</a>
+        </div>
       </div>
 
       <div className="agents-stats">

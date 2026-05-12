@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { streamAgent, getDueScheduledKpis } from "@/lib/agents/runner";
+import { streamAgent, getDueScheduledKpis, recoverStuckKpis } from "@/lib/agents/runner";
 
 const MAX_AGENTS_PER_RUN = 10;
 
@@ -18,10 +18,14 @@ export async function POST(req: Request) {
 
   const dryRun = new URL(req.url).searchParams.get("dry") === "1";
   const startedAt = Date.now();
+
+  // Always clean up stuck KPIs before scheduling new runs
+  const recovered = await recoverStuckKpis();
+
   const dueKpiIds = await getDueScheduledKpis();
 
   if (dueKpiIds.length === 0) {
-    return NextResponse.json({ ok: true, ran: 0, message: "Keine fälligen Agenten." });
+    return NextResponse.json({ ok: true, ran: 0, recovered, message: "Keine fälligen Agenten." });
   }
 
   const batch = dueKpiIds.slice(0, MAX_AGENTS_PER_RUN);
@@ -66,6 +70,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     ran: results.filter((r) => r.status !== "dry").length,
+    recovered,
     skipped: dueKpiIds.length - batch.length,
     totalDueKpis: dueKpiIds.length,
     durationMs: Date.now() - startedAt,
